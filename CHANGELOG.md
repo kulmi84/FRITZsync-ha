@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.1
+
+- wie in FRITZSync 7.9.3/7.9.4 die WebUI-`netDev`-Liste als Masterquelle für MAC, IPv4 und sichtbaren Namen verwenden
+- TR-064 nur noch für Zusatzfelder derselben exakten MAC-Adresse verwenden
+- historische und provisorische `PC-<MAC>`-Einträge ohne IPv4 nicht mehr anzeigen oder mit Einzelabfragen weiterverarbeiten
+- bei nicht verfügbarer WebUI sicher auf TR-064 zurückfallen und auch dort inaktive `PC-<MAC>`-Karteileichen herausfiltern
+
 ## 1.10.0
 
 - Spaltenbreiten direkt am Tabellenkopf per Ziehen verändern und browserbezogen speichern

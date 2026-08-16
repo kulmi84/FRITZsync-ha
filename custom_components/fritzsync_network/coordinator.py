@@ -179,15 +179,36 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _fetch(self) -> tuple[list[dict[str, Any]], bool, bool]:
         """Blockierender Teil des Abrufs, laeuft im Executor."""
-        raw_hosts = self.fritz_hosts.get_hosts_attributes()
+        tr064_hosts = self.fritz_hosts.get_hosts_attributes()
+        try:
+            web = FritzBoxWebClient(
+                str(self.entry.data[CONF_HOST]),
+                str(self.entry.data[CONF_USERNAME]),
+                str(self.entry.data[CONF_PASSWORD]),
+                bool(self.entry.data.get(CONF_USE_TLS, DEFAULT_USE_TLS)),
+            )
+            raw_hosts = web.authoritative_hosts(tr064_hosts)
+            _LOGGER.debug(
+                "FRITZ!Box-Geräteliste: %d IPv4-Einträge aus WebUI/netDev",
+                len(raw_hosts),
+            )
+        except Exception as err:
+            # Lesefehler der undokumentierten WebUI duerfen die Integration
+            # nicht lahmlegen. Der Fallback wird unten nochmals streng
+            # bereinigt, damit keine PC-MAC-Karteileichen verarbeitet werden.
+            _LOGGER.warning(
+                "WebUI/netDev nicht verfügbar, verwende TR-064-Fallback: %s", err
+            )
+            raw_hosts = tr064_hosts
         refreshed = False
+        query_hosts = build_hosts(raw_hosts)
         if self._address_sources_due():
-            macs = [str(host.get("MACAddress") or "") for host in raw_hosts]
+            macs = [str(host.get("mac") or "") for host in query_hosts]
             self._fetch_address_sources(macs)
             refreshed = True
         ptr_refreshed = False
         if self._ptr_records_due():
-            ips = [str(host.get("IPAddress") or "") for host in raw_hosts]
+            ips = [str(host.get("ip") or "") for host in query_hosts]
             dns_server = str(self.entry.data[CONF_HOST]).strip()
             dns_server = dns_server.removeprefix("http://").removeprefix("https://")
             dns_server = dns_server.split("/", 1)[0].split(":", 1)[0]

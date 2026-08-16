@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import time
 import xml.etree.ElementTree as ET
 from typing import Any
@@ -55,6 +56,65 @@ def fixed_ipv4_assignment(device: dict[str, Any]) -> bool | None:
         return None
 
     return walk(device)
+
+
+def _walk_values(value: Any):
+    """Durchlaeuft rekursiv alle Schluessel/Wert-Paare eines netDev-Objekts."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield key, item
+            yield from _walk_values(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _walk_values(item)
+
+
+def webui_ipv4(device: dict[str, Any]) -> str:
+    """Liest die autoritative IPv4-Adresse aus einem WebUI-netDev-Objekt."""
+    for wanted in ("ip", "ipv4", "ip_address", "address", "addr"):
+        for key, value in _walk_values(device):
+            if str(key).casefold() != wanted:
+                continue
+            candidates = value if isinstance(value, list) else [value]
+            for candidate in candidates:
+                try:
+                    address = ipaddress.ip_address(str(candidate).strip())
+                except ValueError:
+                    continue
+                if address.version == 4 and not address.is_unspecified:
+                    return str(address)
+    return ""
+
+
+def webui_name(device: dict[str, Any]) -> str:
+    """Liest den in Heimnetz -> Netzwerk sichtbaren Namen."""
+    for key in ("name", "friendly_name", "hostname", "host_name", "neighbour_name"):
+        value = device.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def webui_active(device: dict[str, Any]) -> bool | None:
+    """Liest den Onlinestatus; ``None`` bedeutet: WebUI lieferte kein Flag."""
+    positive = {"active", "online", "is_active", "connected", "is_connected"}
+    states = {"status", "state", "connection_state"}
+    found = False
+    for key, value in _walk_values(device):
+        normalized = str(key).strip().casefold()
+        if normalized in positive:
+            parsed = _truth(value)
+            if parsed is not None:
+                found = True
+                if parsed:
+                    return True
+        elif normalized in states:
+            text = str(value).strip().casefold()
+            if text in {"online", "active", "connected", "verbunden", "up"}:
+                return True
+            if text in {"offline", "inactive", "disconnected", "getrennt", "down"}:
+                found = True
+    return False if found else None
 
 
 class FritzBoxWebClient:
@@ -120,6 +180,45 @@ class FritzBoxWebClient:
                     walk(item)
         walk(payload)
         return found
+
+    def authoritative_hosts(
+        self, tr064_hosts: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Erzeugt Hostzeilen mit WebUI-Identitaet und TR-064-Zusatzfeldern.
+
+        FRITZ!OS liefert ueber TR-064 auch historische bzw. provisorische
+        Datensaetze. Deshalb stammen MAC, IPv4 und sichtbarer Name ausschliesslich
+        aus ``netDev``. TR-064 darf nur Zusatzfelder derselben exakten MAC
+        beisteuern.
+        """
+        tr_by_mac: dict[str, dict[str, Any]] = {}
+        for raw in tr064_hosts or []:
+            key = self._mac(raw)
+            if key:
+                current = tr_by_mac.get(key)
+                if current is None or bool(raw.get("Active")):
+                    tr_by_mac[key] = raw
+
+        rows: list[dict[str, Any]] = []
+        for device in self.devices():
+            mac = self._mac(device)
+            ip = webui_ipv4(device)
+            name = webui_name(device)
+            uid = str(device.get("UID") or device.get("uid") or "").strip()
+            if not mac or not uid or not ip or not name:
+                continue
+            raw = dict(tr_by_mac.get(mac, {}))
+            raw["MACAddress"] = ":".join(mac[i:i + 2] for i in range(0, 12, 2)).upper()
+            raw["IPAddress"] = ip
+            raw["X_AVM-DE_FriendlyName"] = name
+            raw["HostName"] = name
+            active = webui_active(device)
+            if active is not None:
+                raw["Active"] = active
+            rows.append(raw)
+        if not rows:
+            raise FritzBoxWebError("FRITZ!Box-WebUI lieferte keine IPv4-Geräte")
+        return rows
 
     @staticmethod
     def _mac(device: dict[str, Any]) -> str:

@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "custom_components" / "fritzsync_network"))
 
-from fritzbox_web import fixed_ipv4_assignment
+from fritzbox_web import FritzBoxWebClient, fixed_ipv4_assignment
 
 
 class FritzBoxWebTests(unittest.TestCase):
@@ -19,6 +19,40 @@ class FritzBoxWebTests(unittest.TestCase):
 
     def test_missing_field_is_unknown(self):
         self.assertIsNone(fixed_ipv4_assignment({"name": "NUC"}))
+
+    def test_webui_is_identity_master_and_drops_rows_without_ipv4(self):
+        client = object.__new__(FritzBoxWebClient)
+        client.devices = lambda: [
+            {
+                "UID": "landevice1",
+                "mac": "AA:BB:CC:DD:EE:FF",
+                "name": "Sichtbarer-Name",
+                "ipv4": {"ip": "192.168.9.20"},
+                "online": True,
+            },
+            {
+                "UID": "landevice2",
+                "mac": "2C:71:FF:09:5A:27",
+                "name": "PC-2C-71-FF-09-5A-27",
+            },
+        ]
+        rows = client.authoritative_hosts([
+            {
+                "MACAddress": "AA:BB:CC:DD:EE:FF",
+                "IPAddress": "192.168.9.99",
+                "HostName": "Alter-TR064-Name",
+                "InterfaceType": "Ethernet",
+            },
+            {
+                "MACAddress": "2C:71:FF:09:5A:27",
+                "HostName": "PC-2C-71-FF-09-5A-27",
+            },
+        ])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["IPAddress"], "192.168.9.20")
+        self.assertEqual(rows[0]["X_AVM-DE_FriendlyName"], "Sichtbarer-Name")
+        self.assertEqual(rows[0]["InterfaceType"], "Ethernet")
+        self.assertTrue(rows[0]["Active"])
 
 
 if __name__ == "__main__":
