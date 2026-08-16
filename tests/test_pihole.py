@@ -91,6 +91,50 @@ class PiholeTests(unittest.TestCase):
         self.assertEqual(session.calls, [("DELETE", "https://192.168.9.252/api/auth")])
         self.assertTrue(session.closed)
 
+    def test_add_record_uses_pihole_v6_hosts_endpoint(self):
+        class Response:
+            status_code = 200
+            text = ""
+            reason = ""
+
+            def __init__(self, payload=None):
+                self.payload = payload or {}
+
+            def json(self):
+                return self.payload
+
+        class Session:
+            def __init__(self):
+                self.calls = []
+                self.closed = False
+
+            def request(self, method, url, timeout, **kwargs):
+                self.calls.append((method, url))
+                if method == "GET":
+                    return Response({"config": {"dns": {"hosts": []}}})
+                return Response()
+
+            def close(self):
+                self.closed = True
+
+        client = PiholeClient("https://192.168.9.252", "pw", "fritz.box")
+        session = Session()
+        client._login = lambda: session
+        result = client.add_record("192.168.9.178", "mk-esx20.fritz.box")
+        self.assertEqual(result, "192.168.9.178 mk-esx20.fritz.box")
+        self.assertEqual(session.calls[0], (
+            "GET", "https://192.168.9.252/api/config/dns/hosts"
+        ))
+        self.assertEqual(session.calls[1], (
+            "PUT",
+            "https://192.168.9.252/api/config/dns/hosts/"
+            "192.168.9.178%20mk-esx20.fritz.box?restart=true",
+        ))
+        self.assertEqual(session.calls[-1], (
+            "DELETE", "https://192.168.9.252/api/auth"
+        ))
+        self.assertTrue(session.closed)
+
 
 if __name__ == "__main__":
     unittest.main()
