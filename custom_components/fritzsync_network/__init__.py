@@ -269,71 +269,41 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 )
                 return FritzHosts(fc=connection)
 
-            target_macs = {mac}
-            if current_ip:
-                # Mehrere historische Hostdatensaetze koennen dieselbe IP
-                # besitzen. Jeder davon erzeugt eine eigene PTR-Antwort. Wird
-                # nur die ausgewaehlte MAC geaendert, bleibt der alte Name als
-                # PTR 1 stehen und der neue erscheint lediglich als PTR 2.
-                for host in _fresh_hosts().get_hosts_info():
-                    if str(host.get("ip") or "").strip() != current_ip:
-                        continue
-                    candidate = normalize_mac(host.get("mac"))
-                    if candidate:
-                        target_macs.add(candidate)
-
             # FRITZSync wiederholt die Hosts1-Aktion mit einer frischen
             # Verbindung. Das ist bei FRITZ!OS 8 notwendig, damit nicht nur
             # der sichtbare Friendly Name, sondern auch der DNS-/Hosteintrag
             # dauerhaft übernommen wird, aus dem PTR 1/2 entstehen.
-            for target_mac in target_macs:
-                _fresh_hosts().fc.call_action(
-                    "Hosts1", "X_AVM-DE_SetHostNameByMACAddress",
-                    arguments={
-                        "NewMACAddress": target_mac,
-                        "NewHostName": name,
-                    },
-                )
+            _fresh_hosts().fc.call_action(
+                "Hosts1", "X_AVM-DE_SetHostNameByMACAddress",
+                arguments={"NewMACAddress": mac, "NewHostName": name},
+            )
             time.sleep(1.5)
-            for target_mac in target_macs:
-                _fresh_hosts().fc.call_action(
-                    "Hosts1", "X_AVM-DE_SetHostNameByMACAddress",
-                    arguments={
-                        "NewMACAddress": target_mac,
-                        "NewHostName": name,
-                    },
-                )
+            _fresh_hosts().fc.call_action(
+                "Hosts1", "X_AVM-DE_SetHostNameByMACAddress",
+                arguments={"NewMACAddress": mac, "NewHostName": name},
+            )
 
-            pending = set(target_macs)
-            reported: dict[str, tuple[str, str]] = {}
+            specific_name = ""
+            generic_name = ""
             for delay in (1.5, 3.0, 6.0):
                 time.sleep(delay)
-                for target_mac in tuple(pending):
-                    fresh = _fresh_hosts()
-                    specific = fresh.get_specific_host_entry(target_mac)
-                    specific_name = str(
-                        specific.get("NewHostName") or ""
-                    ).strip()
-                    generic_name = str(
-                        fresh.get_host_name(target_mac) or ""
-                    ).strip()
-                    reported[target_mac] = (specific_name, generic_name)
-                    if (
-                        specific_name.casefold() == name.casefold()
-                        and generic_name.casefold() == name.casefold()
-                    ):
-                        pending.discard(target_mac)
-                if not pending:
+                fresh = _fresh_hosts()
+                specific = fresh.get_specific_host_entry(mac)
+                specific_name = str(specific.get("NewHostName") or "").strip()
+                generic_name = str(fresh.get_host_name(mac) or "").strip()
+                if (
+                    specific_name.casefold() == name.casefold()
+                    and generic_name.casefold() == name.casefold()
+                ):
                     break
-            if pending:
-                details = "; ".join(
-                    f"{target}: Specific={reported.get(target, ('leer', 'leer'))[0] or 'leer'}, "
-                    f"Hostliste={reported.get(target, ('leer', 'leer'))[1] or 'leer'}"
-                    for target in sorted(pending)
-                )
+            if not (
+                specific_name.casefold() == name.casefold()
+                and generic_name.casefold() == name.casefold()
+            ):
                 raise FritzConnectionException(
-                    "FRITZ!Box hat nicht alle DNS-/Hostnamen bestätigt: "
-                    + details
+                    "FRITZ!Box hat den DNS-/Hostnamen nicht bestätigt: "
+                    f"Specific={specific_name or 'leer'}, "
+                    f"Hostliste={generic_name or 'leer'}"
                 )
 
             web = FritzBoxWebClient(
