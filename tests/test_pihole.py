@@ -7,6 +7,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).parents[1] / "custom_components" / "fritzsync_network"))
 
 from pihole import (
+    PiholeClient,
     PiholeApiError,
     dns_name,
     fqdn,
@@ -65,6 +66,30 @@ class PiholeTests(unittest.TestCase):
             rename_candidates(records, "192.168.9.12", "nuc.fritz.box", "fritz.box"),
             ["192.168.9.12 nuc-alt.fritz.box"],
         )
+
+    def test_logout_releases_api_seat(self):
+        class Response:
+            status_code = 204
+            text = ""
+            reason = ""
+
+        class Session:
+            def __init__(self):
+                self.calls = []
+                self.closed = False
+
+            def request(self, method, url, timeout, **kwargs):
+                self.calls.append((method, url))
+                return Response()
+
+            def close(self):
+                self.closed = True
+
+        client = PiholeClient("https://192.168.9.252", "pw", "fritz.box")
+        session = Session()
+        client._logout(session)
+        self.assertEqual(session.calls, [("DELETE", "https://192.168.9.252/api/auth")])
+        self.assertTrue(session.closed)
 
 
 if __name__ == "__main__":
