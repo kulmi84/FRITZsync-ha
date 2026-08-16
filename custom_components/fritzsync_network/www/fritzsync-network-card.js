@@ -5,6 +5,7 @@ const ICONS = {
 
 class FritzSyncNetworkCard extends HTMLElement {
   setConfig(config) {
+    config = config || {};
     this.config = { title: "Netzwerk", show_offline: true, ...config };
     this.selected = null;
     this.filter = "all";
@@ -16,6 +17,7 @@ class FritzSyncNetworkCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (!this.config) return;
     if (!this.config.entity) {
       this.config.entity = Object.keys(hass.states).find((entityId) => {
         const state = hass.states[entityId];
@@ -101,7 +103,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       <td><span class="device-name"><ha-icon icon="${ICONS[host.connection] || ICONS.other}"></ha-icon><strong>${this._escape(host.name)}</strong></span></td>
       <td class="ip">${this._escape(host.ip || "—")}</td>
       <td class="mono">${this._escape(host.mac || "—")}</td>
-      <td>${this._escape(host.connection === "guest" ? "Gast" : host.connection.toUpperCase())}</td>
+      <td>${this._escape(host.connection === "guest" ? "Gast" : String(host.connection || "other").toUpperCase())}</td>
       <td>${this._escape(host.model || "—")}</td>
       <td>${host.blocked ? '<span class="badge blocked-badge">Gesperrt</span>' : '<span class="muted">Frei</span>'}</td>
       <td>${host.speed ? this._escape(host.speed >= 1000 ? `${(host.speed / 1000).toFixed(1)} Gbit/s` : `${host.speed} Mbit/s`) : "—"}</td>
@@ -135,7 +137,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     const host = hosts.find((item) => item.id === id);
     if (!host) return;
     const dialog = this.shadowRoot.querySelector("dialog");
-    dialog.innerHTML = `<form method="dialog"><button class="close" value="cancel"><ha-icon icon="mdi:close"></ha-icon></button><div class="hero"><span class="big-status ${host.active ? "online" : ""}"></span><div><h3>${this._escape(host.name)}</h3><p>${host.active ? "Verbunden" : "Offline"} · ${this._escape(host.connection.toUpperCase())}</p></div></div>
+    dialog.innerHTML = `<form method="dialog"><button class="close" value="cancel"><ha-icon icon="mdi:close"></ha-icon></button><div class="hero"><span class="big-status ${host.active ? "online" : ""}"></span><div><h3>${this._escape(host.name)}</h3><p>${host.active ? "Verbunden" : "Offline"} · ${this._escape(String(host.connection || "other").toUpperCase())}</p></div></div>
       <dl><dt>IP-Adresse</dt><dd>${this._escape(host.ip || "—")}</dd><dt>MAC-Adresse</dt><dd>${this._escape(host.mac || "—")}</dd><dt>Modell</dt><dd>${this._escape(host.model || "—")}</dd><dt>Tempo</dt><dd>${host.speed ? `${host.speed} Mbit/s` : "—"}</dd><dt>Internet</dt><dd>${host.blocked ? "Gesperrt" : "Freigegeben"}</dd></dl>
       <div class="actions"><button type="button" data-action="rename"><ha-icon icon="mdi:pencil"></ha-icon> Umbenennen</button><button type="button" data-action="block" ${!host.ip ? "disabled" : ""}><ha-icon icon="${host.blocked ? "mdi:lock-open" : "mdi:lock"}"></ha-icon> ${host.blocked ? "Freigeben" : "Sperren"}</button><button type="button" data-action="wake" ${!host.mac ? "disabled" : ""}><ha-icon icon="mdi:power"></ha-icon> Aufwecken</button></div><div class="feedback"></div></form>`;
     dialog.querySelector('[data-action="rename"]').onclick = async () => {
@@ -188,6 +190,7 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
 
 class FritzSyncNetworkTopologyCard extends FritzSyncNetworkCard {
   setConfig(config) {
+    config = config || {};
     super.setConfig({ ...config, view: config.view || "topology" });
   }
 
