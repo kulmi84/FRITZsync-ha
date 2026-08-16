@@ -63,6 +63,7 @@ SERVICE_PIHOLE_UPDATE_RECORD: Final = "pihole_update_record"
 SERVICE_PIHOLE_DELETE_RECORD: Final = "pihole_delete_record"
 SERVICE_PIHOLE_SYNC_ALL: Final = "pihole_sync_all"
 SERVICE_CLEANUP_STALE_HOSTS: Final = "cleanup_stale_hosts"
+SERVICE_REFRESH: Final = "refresh"
 
 ATTR_MAC: Final = "mac"
 ATTR_NAME: Final = "name"
