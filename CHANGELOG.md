@@ -5,6 +5,8 @@
 - manuelle Pi-hole-Einträge anhand ihrer IPv4-Adresse einem erkannten CIDR-Netz zuordnen
 - Pi-hole-Einträge in den Filtern `Heimnetz` und `Gast` mit anzeigen
 - sichtbare Netzkennzeichnung der manuellen Einträge weiterhin als `manuell` belassen
+- Verbindung und Geschwindigkeit ohne Zeilenumbruch darstellen
+- redundantes `Gast`-Abzeichen hinter dem Gerätenamen entfernen
 
 ## 1.9.3
 
