@@ -186,8 +186,8 @@ grafischen Editor einstellen.
 | Netz | an | Kompakt als `LAN`, `WLAN`, `Gast LAN` oder `Gast WLAN`; Subnetze stehen als Filterchips bereit |
 | IP-Adresse | an | `IPAddress` |
 | MAC-Adresse | an | `MACAddress` |
-| PTR 1 | an | Aktuelle PTR-Antwort des Pi-hole-DNS (wenn aktiviert), sonst der FRITZ!Box |
-| PTR 2 | aus | Weitere PTR-Antwort bzw. FRITZ!Box-Fallback, sofern vorhanden |
+| PTR 1 | an | Erste PTR-Antwort des DNS-Servers der FRITZ!Box |
+| PTR 2 | aus | Zweite PTR-Antwort der FRITZ!Box, sofern vorhanden |
 | Kommentar | an | Lokal in Home Assistant gespeicherter, MAC-basierter Kommentar |
 | Verbindung | an | `InterfaceType` + Portnummer, z. B. „LAN 2" oder „WLAN (Gast)" |
 | Home Assistant | an | Gerätename aus der Geräteregistrierung |
