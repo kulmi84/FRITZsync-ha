@@ -139,6 +139,15 @@ class PiholeClient:
             session.close()
             raise
 
+    def _logout(self, session: Any) -> None:
+        """Gibt den belegten Pi-hole-API-Sitzplatz zuverlässig wieder frei."""
+        try:
+            self._request(session, "DELETE", "/auth")
+        except Exception:
+            pass
+        finally:
+            session.close()
+
     def list_records(self) -> list[str]:
         """Liest alle lokalen DNS-Hostzeilen aus Pi-hole 6."""
         session = self._login()
@@ -146,7 +155,7 @@ class PiholeClient:
             payload = self._request(session, "GET", "/config/dns/hosts").json()
             return records_from_response(payload)
         finally:
-            session.close()
+            self._logout(session)
 
     def add_record(self, ip: str, names: str) -> str:
         """Legt eine manuelle Hostzeile an."""
@@ -171,7 +180,7 @@ class PiholeClient:
             )
             return desired
         finally:
-            session.close()
+            self._logout(session)
 
     def delete_record(self, record: str, restart: bool = True) -> None:
         """Löscht exakt eine vorhandene Hostzeile."""
@@ -185,7 +194,7 @@ class PiholeClient:
                 f"/config/dns/hosts/{quote(normalized, safe='')}?restart={'true' if restart else 'false'}",
             )
         finally:
-            session.close()
+            self._logout(session)
 
     def replace_record(self, old_record: str, ip: str, names: str) -> str:
         """Ersetzt eine Hostzeile und startet DNS erst nach dem neuen Eintrag."""
@@ -226,7 +235,7 @@ class PiholeClient:
                 raise
             return desired
         finally:
-            session.close()
+            self._logout(session)
 
     def sync_all(self, desired_records: list[str]) -> dict[str, int]:
         """Gleicht alle übergebenen Geräte mit lokalen Pi-hole-DNS-Zeilen ab."""
@@ -272,7 +281,7 @@ class PiholeClient:
                 )
             return {"devices": len(desired), "added": len(adds), "deleted": len(deletes)}
         finally:
-            session.close()
+            self._logout(session)
 
     def sync_rename(self, ip: str, old_name: str, new_name: str) -> str:
         """Ersetzt nur den exakten alten lokalen DNS-Namen."""
@@ -316,4 +325,4 @@ class PiholeClient:
                 )
             return desired
         finally:
-            session.close()
+            self._logout(session)

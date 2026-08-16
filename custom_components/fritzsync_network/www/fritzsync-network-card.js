@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.9.0";
+const FBN_VERSION = "1.9.1";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -57,6 +57,7 @@ const CONFIG_DEFAULTS = {
   show_filter_blocked: true,
   show_filter_update: true,
   show_filter_new: true,
+  show_filter_manual: true,
   show_filter_networks: true,
   show_refresh: true,
   show_pihole_records: true,
@@ -120,6 +121,7 @@ const FILTERS = [
   { key: "gesperrt", cfg: "show_filter_blocked", label: "Gesperrt", icon: "mdi:web-off" },
   { key: "update", cfg: "show_filter_update", label: "Update", icon: "mdi:package-down" },
   { key: "neu", cfg: "show_filter_new", label: "Neu", icon: "mdi:new-box" },
+  { key: "manuell", cfg: "show_filter_manual", label: "Manuell", icon: "mdi:dns" },
 ];
 
 /** Standardfarbe je Farbschluessel, wenn der Nutzer nichts gesetzt hat. */
@@ -342,6 +344,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._popupMac = null;
     this._popupReturnFocus = null;
     this._onPopupKeydown = null;
+    this._piholeEditing = "";
   }
 
   /* -- Lovelace-Schnittstelle -------------------------------------- */
@@ -408,6 +411,36 @@ class FritzSyncNetworkCard extends HTMLElement {
     return Array.isArray(hosts) ? hosts : [];
   }
 
+  _manualPiholeHosts() {
+    const state = this._stateObj();
+    const attributes = (state && state.attributes) || {};
+    if (!this._config.show_pihole_records || !attributes.pihole_aktiv) return [];
+    const entries = Array.isArray(attributes.pihole_eintraege)
+      ? attributes.pihole_eintraege : [];
+    return entries.filter((item) => !item.managed).map((item, index) => ({
+      _pihole: true,
+      _record: item.record,
+      _pihole_index: index,
+      name: item.names,
+      ip: item.ip,
+      network: "manuell",
+      zone: "manuell",
+      active: false,
+      mac: "",
+      connection: "unbekannt",
+      connection_label: "—",
+      ptr1: "",
+      ptr2: "",
+      comment: "",
+      ha_name: "",
+      speed: 0,
+    }));
+  }
+
+  _listHosts() {
+    return [...this._hosts(), ...this._manualPiholeHosts()];
+  }
+
   /** Erkennt, ob sich an den angezeigten Daten ueberhaupt etwas geaendert hat. */
   _computeSignature(hosts) {
     return hosts
@@ -444,18 +477,18 @@ class FritzSyncNetworkCard extends HTMLElement {
 
   _filteredHosts() {
     const search = this._search.trim().toLowerCase();
-    let hosts = this._hosts();
+    let hosts = this._listHosts();
 
     if (this._config.hide_inactive) {
-      hosts = hosts.filter((host) => host.active);
+      hosts = hosts.filter((host) => host._pihole || host.active);
     }
 
     switch (this._filter) {
       case "aktiv":
-        hosts = hosts.filter((host) => host.active);
+        hosts = hosts.filter((host) => host._pihole || host.active);
         break;
       case "inaktiv":
-        hosts = hosts.filter((host) => !host.active);
+        hosts = hosts.filter((host) => !host._pihole && !host.active);
         break;
       case "gast":
         hosts = hosts.filter((host) => host.guest);
@@ -468,6 +501,9 @@ class FritzSyncNetworkCard extends HTMLElement {
         break;
       case "neu":
         hosts = hosts.filter((host) => host.is_new);
+        break;
+      case "manuell":
+        hosts = hosts.filter((host) => host._pihole);
         break;
       default:
         break;
@@ -507,11 +543,15 @@ class FritzSyncNetworkCard extends HTMLElement {
       this._build();
       this._built = true;
     }
-    const hosts = this._hosts();
+    const hosts = this._listHosts();
     const signature = this._computeSignature(hosts);
     const changed = signature !== this._signature;
     this._signature = signature;
     if (changed) this._buildFilters();
+    const piholeEnabled = !!((this._stateObj() || {}).attributes || {}).pihole_aktiv;
+    this.querySelectorAll(".fbn-pihole-tool").forEach((button) => {
+      button.hidden = !piholeEnabled;
+    });
     this._renderSummary();
     this._renderBody();
     if (changed) this._renderHead();
@@ -533,6 +573,12 @@ class FritzSyncNetworkCard extends HTMLElement {
         <div class="fbn-toolbar">
           <div class="fbn-filters"></div>
           <div class="fbn-tools">
+            <button class="fbn-chip fbn-pihole-sync fbn-pihole-tool" type="button" hidden title="Alle FRITZ!Box-Geräte an Pi-hole übertragen">
+              <ha-icon icon="mdi:sync"></ha-icon><span>Pi-hole abgleichen</span>
+            </button>
+            <button class="fbn-chip fbn-pihole-add fbn-pihole-tool" type="button" hidden title="Manuellen DNS-Eintrag hinzufügen">
+              <ha-icon icon="mdi:plus"></ha-icon><span>DNS-Eintrag</span>
+            </button>
             <button class="fbn-chip fbn-refresh" type="button" title="Geräteliste jetzt aktualisieren">
               <ha-icon icon="mdi:refresh"></ha-icon><span>Aktualisieren</span>
             </button>
@@ -721,6 +767,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
     this.querySelectorAll(".fbn-chip").forEach((chip) => {
       const chipKey = chip.dataset.filter;
+      if (!chipKey) return;
       const pressed = chipKey.startsWith("network:")
         ? chipKey.slice("network:".length) === this._networkFilter
         : chipKey === this._filter;
@@ -765,7 +812,7 @@ class FritzSyncNetworkCard extends HTMLElement {
   _exportXlsx(scope) {
     const hosts = scope === "filtered"
       ? this._filteredHosts()
-      : this._hosts().slice().sort((a, b) => ipSortKey(a.ip) - ipSortKey(b.ip));
+      : this._listHosts().slice().sort((a, b) => ipSortKey(a.ip) - ipSortKey(b.ip));
     const headers = [
       "Status", "Neu", "FRITZ!Box-Name", "Netz", "Subnetz", "MAC-Adresse",
       "IP-Adresse", "PTR 1", "PTR 2", "Kommentar", "Verbindung",
@@ -773,6 +820,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       "Modell", "Gerätetyp"
     ];
     const networkLabel = (host) => {
+      if (host._pihole) return "manuell";
       const guest = host.guest || host.zone === "Gast" || host.zone === "Gast/anderes Netz";
       if (guest) return host.connection === "wlan" ? "Gast WLAN" : "Gast LAN";
       return host.connection === "wlan" ? "WLAN" : "LAN";
@@ -999,6 +1047,8 @@ class FritzSyncNetworkCard extends HTMLElement {
       parts.push(`${attributes.updates_verfuegbar} mit Update`);
     }
     if (attributes.gesperrt) parts.push(`${attributes.gesperrt} gesperrt`);
+    const manual = this._manualPiholeHosts().length;
+    if (manual) parts.push(`${manual} manuell`);
     const filtered = shown !== (attributes.gesamt || 0) ? ` · ${shown} angezeigt` : "";
     container.textContent = parts.join(" · ") + filtered;
   }
@@ -1026,8 +1076,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
 
     const columns = this._visibleColumns();
-    const hostRows = hosts.map((host) => this._renderRow(host, columns)).join("");
-    body.innerHTML = hostRows + this._renderPiholeRows(columns);
+    body.innerHTML = hosts.map((host) => this._renderRow(host, columns)).join("");
 
     if (!body.dataset.bound) {
       body.dataset.bound = "1";
@@ -1067,40 +1116,23 @@ class FritzSyncNetworkCard extends HTMLElement {
     return Array.isArray(value) ? value : [];
   }
 
-  _renderPiholeRows(columns) {
-    const state = this._stateObj();
-    const attributes = (state && state.attributes) || {};
-    if (!this._config.show_pihole_records || !attributes.pihole_aktiv) return "";
-    const records = this._piholeRecords();
-    const error = attributes.pihole_fehler
-      ? `<span class="fbn-pihole-error">${escapeHtml(attributes.pihole_fehler)}</span>` : "";
-    const heading = `
-      <tr class="fbn-pihole-heading"><td colspan="${columns.length}">
-        <div><span><ha-icon icon="mdi:pi-hole"></ha-icon> Pi-hole-DNS-Einträge (${records.length})</span>
-          ${error}<span class="fbn-pihole-buttons">
-            <button class="fbn-btn fbn-pihole-sync" type="button"><ha-icon icon="mdi:sync"></ha-icon> Alle Geräte an Pi-hole übertragen</button>
-            <button class="fbn-btn fbn-pihole-add" type="button"><ha-icon icon="mdi:plus"></ha-icon> Manuellen Eintrag hinzufügen</button>
-          </span></div>
-      </td></tr>`;
-    return heading + records.map((item) => this._renderPiholeRow(item, columns)).join("");
-  }
-
-  _renderPiholeRow(item, columns, draft = false) {
+  _renderPiholeRow(item, columns, draft = false, editing = draft) {
     const cells = columns.map((column) => {
-      if (column.key === "name") return draft
-        ? `<td class="fbn-cell fbn-pihole-namecell" data-pihole-column="name"><input class="fbn-pihole-names" value="${escapeHtml(item.names || "")}" placeholder="name.fritz.box" aria-label="DNS-Name oder Aliasnamen" spellcheck="false"><span class="fbn-pihole-rowbuttons"><button class="fbn-icon-btn fbn-pihole-save" type="button" title="Speichern"><ha-icon icon="mdi:content-save"></ha-icon></button><button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Verwerfen"><ha-icon icon="mdi:close"></ha-icon></button></span></td>`
+      if (column.key === "name") return editing
+        ? `<td class="fbn-cell fbn-pihole-namecell" data-pihole-column="name"><input class="fbn-pihole-names" value="${escapeHtml(item.names || "")}" placeholder="name.fritz.box" aria-label="DNS-Name oder Aliasnamen" spellcheck="false"><span class="fbn-pihole-rowbuttons"><button class="fbn-icon-btn fbn-pihole-save" type="button" title="Speichern"><ha-icon icon="mdi:content-save"></ha-icon></button>${draft ? "" : `<button class="fbn-icon-btn fbn-pihole-delete" type="button" title="Löschen"><ha-icon icon="mdi:delete"></ha-icon></button>`}<button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button></span></td>`
         : `<td class="fbn-cell" data-pihole-column="name">${escapeHtml(item.names || "—")}</td>`;
-      if (column.key === "ip") return draft
+      if (column.key === "ip") return editing
         ? `<td class="fbn-cell" data-pihole-column="ip"><input class="fbn-pihole-ip" value="${escapeHtml(item.ip || "")}" placeholder="192.168.9.x" aria-label="IP-Adresse" inputmode="decimal" spellcheck="false"></td>`
         : `<td class="fbn-cell fbn-mono" data-pihole-column="ip">${escapeHtml(item.ip || "—")}</td>`;
       if (column.key === "network") return `<td class="fbn-cell" data-pihole-column="network"><span class="fbn-badge ${item.managed ? "" : "fbn-badge-manual"}">${item.managed ? "Pi-hole" : "manuell"}</span></td>`;
       return `<td class="fbn-cell fbn-dim" data-pihole-column="${column.key}">—</td>`;
     }).join("");
-    return `<tr class="fbn-pihole-row${draft ? " fbn-pihole-draft fbn-pihole-editing" : ""}" data-record="${escapeHtml(item.record || "")}" data-ip="${escapeHtml(item.ip || "")}" data-names="${escapeHtml(item.names || "")}" data-managed="${item.managed ? "1" : "0"}" tabindex="0" title="Zum Bearbeiten anklicken">${cells}</tr>`;
+    return `<tr class="fbn-pihole-row${draft ? " fbn-pihole-draft" : ""}${editing ? " fbn-pihole-editing" : ""}" data-record="${escapeHtml(item.record || "")}" data-ip="${escapeHtml(item.ip || "")}" data-names="${escapeHtml(item.names || "")}" data-managed="${item.managed ? "1" : "0"}" tabindex="0" title="Zum Bearbeiten anklicken">${cells}</tr>`;
   }
 
   _editPiholeRow(row) {
     if (!row || row.classList.contains("fbn-pihole-editing")) return;
+    this._piholeEditing = row.dataset.record || "";
     row.classList.add("fbn-pihole-editing");
     const nameCell = row.querySelector('[data-pihole-column="name"]');
     const ipCell = row.querySelector('[data-pihole-column="ip"]');
@@ -1112,10 +1144,10 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   _bindPihole() {
-    const body = this.querySelector(".fbn-body");
-    if (!body || body.dataset.piholeBound) return;
-    body.dataset.piholeBound = "1";
-    body.addEventListener("click", async (event) => {
+    const root = this.querySelector(".fbn-root");
+    if (!root || root.dataset.piholeBound) return;
+    root.dataset.piholeBound = "1";
+    root.addEventListener("click", async (event) => {
       const sync = event.target.closest(".fbn-pihole-sync");
       if (sync) {
         if (!window.confirm("Alle FRITZ!Box-Geräte mit IP-Adresse jetzt an Pi-hole übertragen?\n\nVorhandene lokale DNS-Zuordnungen derselben Geräte werden aktualisiert.")) return;
@@ -1129,6 +1161,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       }
       const add = event.target.closest(".fbn-pihole-add");
       if (add) {
+        const body = this.querySelector(".fbn-body");
         const template = document.createElement("tbody");
         template.innerHTML = this._renderPiholeRow({record: "", names: "", ip: "", managed: false}, this._visibleColumns(), true);
         const row = template.firstElementChild;
@@ -1139,6 +1172,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       const row = event.target.closest(".fbn-pihole-row");
       if (!row) return;
       if (event.target.closest(".fbn-pihole-cancel")) {
+        this._piholeEditing = "";
         if (row.classList.contains("fbn-pihole-draft")) {
           row.remove();
         } else {
@@ -1180,7 +1214,11 @@ class FritzSyncNetworkCard extends HTMLElement {
             ip, dns_names: names,
           });
         }
+        this._piholeEditing = "";
+        button.blur();
+        this._renderBody();
       } catch (error) {
+        this._piholeEditing = oldRecord;
         window.alert(`Pi-hole-Änderung fehlgeschlagen: ${error && error.message ? error.message : error}`);
       } finally {
         button.disabled = false;
@@ -1213,6 +1251,14 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   _renderRow(host, columns) {
+    if (host._pihole) {
+      return this._renderPiholeRow({
+        record: host._record,
+        names: host.name,
+        ip: host.ip,
+        managed: false,
+      }, columns, false, this._piholeEditing === host._record);
+    }
     const macAttr = ` data-mac="${escapeHtml(host.mac)}"`;
     const interactive = this._rowInteractive(host);
     const classes = ["fbn-tr"];
@@ -1988,6 +2034,7 @@ const EDITOR_SCHEMA = [
       { name: "show_filter_blocked", selector: { boolean: {} } },
       { name: "show_filter_update", selector: { boolean: {} } },
       { name: "show_filter_new", selector: { boolean: {} } },
+      { name: "show_filter_manual", selector: { boolean: {} } },
       { name: "show_filter_networks", selector: { boolean: {} } },
       { name: "show_refresh", selector: { boolean: {} } },
       { name: "show_pihole_records", selector: { boolean: {} } },
@@ -2069,6 +2116,7 @@ const EDITOR_LABELS = {
   show_filter_blocked: "Filter „Gesperrt“ anzeigen",
   show_filter_update: "Filter „Update“ anzeigen",
   show_filter_new: "Filter „Neu“ anzeigen",
+  show_filter_manual: "Filter „Manuell“ anzeigen",
   show_filter_networks: "Netzfilter „Heimnetz/Gast“ anzeigen",
   show_refresh: "Schaltfläche „Aktualisieren“ anzeigen",
   show_pihole_records: "Manuelle Pi-hole-DNS-Einträge anzeigen",
