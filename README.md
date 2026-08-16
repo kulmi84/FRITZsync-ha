@@ -4,7 +4,7 @@ Lokale Home-Assistant-Integration für FRITZ!Box-Netzwerkgeräte, Pi-hole-DNS un
 konfigurierbare Dashboard-Tabelle. Geräte lassen sich durchsuchen, filtern, umbenennen,
 aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
-![Version](https://img.shields.io/badge/Version-1.10.3-blue)
+![Version](https://img.shields.io/badge/Version-1.10.4-blue)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)
 ![FRITZ!OS](https://img.shields.io/badge/FRITZ!OS-8.x-E2001A)
@@ -184,9 +184,9 @@ grafischen Editor einstellen.
 | Modell | aus | Nur AVM-Geräte melden hier etwas |
 | Gerätetyp | aus | Automatisch erkannte bzw. vom Nutzer gesetzte Geräteklasse |
 
-Die Tabelle nutzt zunächst die vorhandene Kartenbreite vollständig. Erst wenn manuell
-gesetzte Mindestbreiten zusammen nicht mehr hineinpassen, wird sie waagerecht scrollbar. So
-bleiben auch die hinteren Spalten wie *Home Assistant* erreichbar. Näheres unter
+Die Tabelle nutzt die vorhandene Kartenbreite vollständig. Beim Ziehen einer Trennlinie
+wird die benachbarte Spalte gegensinnig angepasst; dadurch bleibt die Gesamtbreite konstant
+und es entsteht kein waagerechter Scrollbalken. Näheres unter
 [Wischen und Blättern auf dem Smartphone](#wischen-und-blättern-auf-dem-smartphone).
 
 ### Sortieren, filtern, suchen
