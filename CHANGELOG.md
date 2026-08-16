@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.6
+
+- Fokus nach dem Öffnen einer manuellen Pi-hole-DNS-Zeile zuverlässig im Namensfeld halten
+- globale Home-Assistant-Tastenkürzel während der DNS-Eingabe unterdrücken
+- DNS-Eintrag mit Enter speichern und mit Escape abbrechen, ohne aus der Zeile zu springen
+
 ## 1.10.5
 
 - Zeilenumbruch in der Spalte `Verbindung` wieder zulassen, damit sie schmal eingestellt werden kann
