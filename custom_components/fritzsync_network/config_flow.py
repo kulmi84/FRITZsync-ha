@@ -130,7 +130,7 @@ class FritzSyncNetworkConfigFlow(ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
-            title=f"{self._model} Netzwerk",
+            title="FRITZ!Sync - Homeassistant",
             data={
                 CONF_HOST: self._host,
                 CONF_USERNAME: self._username,
