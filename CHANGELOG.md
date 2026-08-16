@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+
+- kompakte Netzwerkgerätetabelle als neue Standardansicht
+- Tabelle und Topologie direkt in der Karte umschaltbar
+- Kartenwähler auch ohne vorab übergebene Entitäten robust unterstützen
+- doppelte Custom-Element-Registrierung verhindern
+
 ## 0.1.4
 
 - FritzSync-Sensor in der Dashboard-Karte automatisch erkennen
