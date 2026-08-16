@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.10.0
+
+- Spaltenbreiten direkt am Tabellenkopf per Ziehen verändern und browserbezogen speichern
+- Spaltenbreite per Doppelklick auf den Ziehgriff zurücksetzen
+- Excel-Reparaturmeldung durch Entfernen des fehlerhaften OOXML-Tabellenparts beheben
+- beim Excel-Export ausschließlich sichtbare Spalten in ihrer aktuellen Reihenfolge exportieren
+- beim Excel-Export ausschließlich aktuell gefilterte und gesuchte Zeilen exportieren
+- `DNS-Eintrag` als sofort sichtbare Eingabezeile am Tabellenanfang öffnen
+- DNS-Entwurf mit Enter speichern, Escape abbrechen und unvollständige Eingaben verständlich melden
+
 ## 1.9.4
 
 - manuelle Pi-hole-Einträge anhand ihrer IPv4-Adresse einem erkannten CIDR-Netz zuordnen
