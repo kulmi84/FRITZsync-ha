@@ -27,15 +27,22 @@ from .const import (
     CONF_ADDRESS_SOURCE_INTERVAL,
     CONF_SCAN_INTERVAL,
     CONF_TRACK_ADDRESS_SOURCE,
+    CONF_PIHOLE_DOMAIN,
+    CONF_PIHOLE_ENABLED,
+    CONF_PIHOLE_HOST,
+    CONF_PIHOLE_PASSWORD,
     DEFAULT_ADDRESS_SOURCE_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TRACK_ADDRESS_SOURCE,
+    DEFAULT_PIHOLE_DOMAIN,
+    DEFAULT_PIHOLE_HOST,
     DOMAIN,
     CONF_USE_TLS,
     DEFAULT_USE_TLS,
 )
 from .fritzbox_web import FritzBoxWebClient, fixed_ipv4_assignment
 from .hosts import apply_fritzsync_fields, build_hosts, mac_key, resolve_ptr_map, summarize
+from .pihole import PiholeApiError, PiholeClient, fqdn, split_record
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,6 +71,8 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._address_source_failed = False
         self._ptr_records: dict[str, list[str]] = {}
         self._ptr_scan: datetime | None = None
+        self._pihole_records: list[str] = []
+        self._pihole_error: str = ""
         self._comments: dict[str, str] = {}
         self._comment_store = Store(
             hass, 1, f"{DOMAIN}.{entry.entry_id}.device_comments"
@@ -154,6 +163,20 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Dauerhafte IPv4-Zuweisungen nicht abrufbar: %s", err)
         self._address_sources = sources
 
+    def pihole_client(self) -> PiholeClient:
+        """Erzeugt den Pi-hole-Client aus den gespeicherten Optionen."""
+        options = self.entry.options
+        if not options.get(CONF_PIHOLE_ENABLED, False):
+            raise PiholeApiError("Pi-hole-Synchronisierung ist nicht aktiviert")
+        password = str(options.get(CONF_PIHOLE_PASSWORD, ""))
+        if not password:
+            raise PiholeApiError("Pi-hole-Kennwort fehlt")
+        return PiholeClient(
+            str(options.get(CONF_PIHOLE_HOST, DEFAULT_PIHOLE_HOST)),
+            password,
+            str(options.get(CONF_PIHOLE_DOMAIN, DEFAULT_PIHOLE_DOMAIN)),
+        )
+
     def _fetch(self) -> tuple[list[dict[str, Any]], bool, bool]:
         """Blockierender Teil des Abrufs, laeuft im Executor."""
         raw_hosts = self.fritz_hosts.get_hosts_attributes()
@@ -170,6 +193,17 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             dns_server = dns_server.split("/", 1)[0].split(":", 1)[0]
             self._ptr_records = resolve_ptr_map(ips, dns_server)
             ptr_refreshed = True
+        if self.entry.options.get(CONF_PIHOLE_ENABLED, False):
+            try:
+                self._pihole_records = self.pihole_client().list_records()
+                self._pihole_error = ""
+            except Exception as err:
+                # Die FRITZ!Box-Liste bleibt auch bei einem Pi-hole-Fehler nutzbar.
+                self._pihole_error = str(err)
+                _LOGGER.warning("Pi-hole-DNS-Einträge nicht abrufbar: %s", err)
+        else:
+            self._pihole_records = []
+            self._pihole_error = ""
         return raw_hosts, refreshed, ptr_refreshed
 
     def _ha_device_map(self) -> dict[str, dict[str, str]]:
@@ -243,6 +277,22 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for host in hosts:
             host["is_new"] = mac_key(host.get("mac")) not in self._acknowledged_macs
 
+        domain = str(
+            self.entry.options.get(CONF_PIHOLE_DOMAIN, DEFAULT_PIHOLE_DOMAIN)
+        )
+        managed: set[str] = set()
+        for host in hosts:
+            try:
+                if host.get("ip") and host.get("name"):
+                    managed.add(f"{host['ip']} {fqdn(str(host['name']), domain)}")
+            except PiholeApiError:
+                continue
+        pihole_manual = [
+            split_record(record)
+            for record in self._pihole_records
+            if record.lower() not in managed
+        ]
+
         return {
             "hosts": hosts,
             "summary": summarize(hosts),
@@ -253,6 +303,11 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 else None
             ),
             "track_address_source": self.track_address_source,
+            "pihole_records": pihole_manual,
+            "pihole_error": self._pihole_error,
+            "pihole_enabled": bool(
+                self.entry.options.get(CONF_PIHOLE_ENABLED, False)
+            ),
         }
 
     async def async_invalidate_address_sources(self) -> None:
