@@ -1,5 +1,10 @@
 # FRITZ!Sync - Homeassistant
 
+Mehrfach zur gleichen IP gemeldete, inaktive FRITZ!Box-Einträge werden erkannt.
+Die Karte bietet dann **Dubletten bereinigen** an, zeigt vorab die betroffenen
+Namen, IP- und MAC-Adressen und löscht sie erst nach Bestätigung und erneuter
+Prüfung. Der aktive beziehungsweise beste Datensatz bleibt erhalten.
+
 Eine Home-Assistant-Integration, die alle Geräte im FRITZ!Box-Heimnetz als sortierbare
 Tabelle auf das Dashboard bringt – mit IP-Adresse, MAC-Adresse, Verbindungsart und dem
 passenden Home-Assistant-Gerätenamen.

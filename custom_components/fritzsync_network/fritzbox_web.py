@@ -178,3 +178,21 @@ class FritzBoxWebClient:
         raise FritzBoxWebError(
             f"FRITZ!Box hat den Namen nicht bestätigt (gemeldet: {actual or 'leer'})"
         )
+
+    def delete_device(self, mac: str) -> None:
+        """Loescht einen bekannten Host ueber dieselbe API wie die Weboberflaeche."""
+        device = self.device(mac)
+        if not device:
+            raise FritzBoxWebError(f"Gerät {mac} wurde in der FRITZ!Box-WebUI nicht gefunden")
+        uid = device.get("UID") or device.get("uid")
+        if not uid:
+            raise FritzBoxWebError(f"FRITZ!Box lieferte keine Geräte-ID für {mac}")
+        response = self.session.delete(
+            f"{self.base}/api/v0/generic/landevice/landevice/{uid}",
+            headers={
+                "Authorization": f"AVM-SID {self.sid}",
+                "Origin": self.base,
+                "Referer": f"{self.base}/?sid={self.sid}",
+            }, timeout=20,
+        )
+        response.raise_for_status()
