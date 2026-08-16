@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 from typing import Any
-from urllib.parse import urlparse
 
 from fritzconnection.core.exceptions import (
     FritzAuthorizationError,
@@ -46,7 +45,6 @@ from .hosts import (
     apply_fritzsync_fields,
     build_hosts,
     mac_key,
-    merge_ptr_maps,
     resolve_ptr_map,
     summarize,
 )
@@ -138,7 +136,11 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Aktualisiert auch die langsam getakteten IP-Typ- und PTR-Felder."""
         self._address_source_scan = None
         self._ptr_scan = None
-        await self.async_request_refresh()
+        # ``async_request_refresh`` laeuft durch den Coordinator-Debouncer und
+        # kann mit einem bereits geplanten Abruf zusammenfallen. Nach einer
+        # Umbenennung bzw. einem manuellen Aktualisieren muessen PTR 1/2 jedoch
+        # sicher aus einer neuen FRITZ!Box-DNS-Abfrage stammen.
+        await self.async_refresh()
 
     def _fetch_address_sources(self, macs: list[str]) -> None:
         """Holt DHCP/statisch je Geraet (ein SOAP-Aufruf pro MAC-Adresse)."""
@@ -226,21 +228,7 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             dns_server = str(self.entry.data[CONF_HOST]).strip()
             dns_server = dns_server.removeprefix("http://").removeprefix("https://")
             dns_server = dns_server.split("/", 1)[0].split(":", 1)[0]
-            fritz_ptr = resolve_ptr_map(ips, dns_server)
-            pihole_ptr: dict[str, list[str]] = {}
-            if self.entry.options.get(CONF_PIHOLE_ENABLED, False):
-                address = str(
-                    self.entry.options.get(CONF_PIHOLE_HOST, DEFAULT_PIHOLE_HOST)
-                ).strip()
-                parsed = urlparse(
-                    address if "://" in address else f"https://{address}"
-                )
-                pihole_dns = parsed.hostname or ""
-                if pihole_dns and pihole_dns != dns_server:
-                    pihole_ptr = resolve_ptr_map(ips, pihole_dns)
-            # Der synchronisierte Pi-hole-Name ist aktueller als ein eventuell
-            # noch gecachter FRITZ!Box-PTR. Die Box bleibt vollwertiger Fallback.
-            self._ptr_records = merge_ptr_maps(pihole_ptr, fritz_ptr)
+            self._ptr_records = resolve_ptr_map(ips, dns_server)
             ptr_refreshed = True
         if self.entry.options.get(CONF_PIHOLE_ENABLED, False):
             try:
