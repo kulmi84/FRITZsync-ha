@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.12
+
+- PTR-Antworten bei aktiviertem Pi-hole zusätzlich direkt über dessen DNS-Server abfragen
+- den aktuellen Pi-hole-Namen als `PTR 1` bevorzugen und die FRITZ!Box-Antwort als Rückfall bzw. `PTR 2` behalten
+- identische PTR-Namen unabhängig von Groß-/Kleinschreibung zusammenführen
+- PTR-Quellen nach Umbenennen und über `Aktualisieren` vollständig neu einlesen
+
 ## 1.10.11
 
 - Fußleisten-Schaltfläche `Schließen` bereits beim Drücken ausführen, bevor ein Sensorupdate sie ersetzen kann
