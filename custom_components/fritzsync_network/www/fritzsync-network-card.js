@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.3";
+const FBN_VERSION = "1.10.4";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -112,6 +112,12 @@ const COLUMNS = [
   { key: "model", cfg: "show_model", label: "Modell", prio: 3, sortable: true },
   { key: "type", cfg: "show_type", label: "Gerätetyp", prio: 3, sortable: true },
 ];
+
+const DEFAULT_COLUMN_WIDTHS = {
+  status: 40, name: 220, network: 100, mac: 150, ptr1: 180, ptr2: 180,
+  ip: 130, comment: 150, connection: 125, ha_name: 150, ip_type: 100,
+  wan: 80, update: 80, speed: 95, model: 140, type: 120,
+};
 
 const FILTERS = [
   { key: "alle", cfg: "show_filter_all", label: "Alle", icon: "mdi:format-list-bulleted" },
@@ -515,10 +521,14 @@ class FritzSyncNetworkCard extends HTMLElement {
   _renderColgroup() {
     const group = this.querySelector(".fbn-colgroup");
     if (!group) return;
-    group.innerHTML = this._visibleColumns().map((column) => {
-      const width = Number(this._columnWidths[column.key]) || 0;
-      const style = width > 0 ? ` style="width:${width}px"` : "";
-      return `<col class="fbn-coldef-${column.key}"${style}>`;
+    const columns = this._visibleColumns();
+    const widths = columns.map((column) =>
+      Number(this._columnWidths[column.key]) || DEFAULT_COLUMN_WIDTHS[column.key] || 100
+    );
+    const total = widths.reduce((sum, width) => sum + width, 0) || 1;
+    group.innerHTML = columns.map((column, index) => {
+      const percent = widths[index] / total * 100;
+      return `<col class="fbn-coldef-${column.key}" style="width:${percent.toFixed(4)}%">`;
     }).join("");
   }
 
@@ -1078,17 +1088,32 @@ class FritzSyncNetworkCard extends HTMLElement {
         event.stopPropagation();
         const key = handle.dataset.resize;
         const header = handle.closest("th");
+        const headers = Array.from(row.querySelectorAll("th[data-sort]"));
+        const index = headers.indexOf(header);
+        const neighbourIndex = index < headers.length - 1 ? index + 1 : index - 1;
+        const neighbour = headers[neighbourIndex];
+        if (!neighbour) return;
+        const neighbourKey = neighbour.dataset.sort;
         const startX = event.clientX;
         const startWidth = header.getBoundingClientRect().width;
+        const neighbourStartWidth = neighbour.getBoundingClientRect().width;
+        headers.forEach((item) => {
+          this._columnWidths[item.dataset.sort] = item.getBoundingClientRect().width;
+        });
         handle.classList.add("fbn-resizing");
         document.body.style.cursor = "col-resize";
         document.body.style.userSelect = "none";
         const move = (moveEvent) => {
           moveEvent.preventDefault();
-          const width = Math.max(54, Math.min(600, Math.round(startWidth + moveEvent.clientX - startX)));
-          this._columnWidths[key] = width;
-          const column = this.querySelector(`.fbn-coldef-${key}`);
-          if (column) column.style.width = `${width}px`;
+          const delta = moveEvent.clientX - startX;
+          const signedDelta = neighbourIndex > index ? delta : -delta;
+          const width = Math.max(54, Math.round(startWidth + signedDelta));
+          const appliedDelta = width - startWidth;
+          const neighbourWidth = Math.max(54, Math.round(neighbourStartWidth - appliedDelta));
+          const actualDelta = neighbourStartWidth - neighbourWidth;
+          this._columnWidths[key] = Math.round(startWidth + actualDelta);
+          this._columnWidths[neighbourKey] = neighbourWidth;
+          this._renderColgroup();
           this._updateArrows();
         };
         const stop = () => {
@@ -1111,8 +1136,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         event.stopPropagation();
         delete this._columnWidths[handle.dataset.resize];
         this._saveColumnWidths();
-        const column = this.querySelector(`.fbn-coldef-${handle.dataset.resize}`);
-        if (column) column.style.removeProperty("width");
+        this._renderColgroup();
         this._renderBody();
       });
     });
@@ -1928,8 +1952,11 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-summary {
         padding: 2px 16px 8px; font-size: 0.82em; color: var(--fbn-header-text);
       }
-      .fbn-scrollwrap { position: relative; }
-      .fbn-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .fbn-card, .fbn-root, .fbn-scrollwrap, .fbn-scroll {
+        min-width: 0; max-width: 100%; box-sizing: border-box;
+      }
+      .fbn-scrollwrap { position: relative; overflow: hidden; }
+      .fbn-scroll { width: 100%; overflow-x: hidden; }
       .fbn-arrow {
         position: absolute; top: 0; bottom: 0; width: 34px; z-index: 5;
         border: none; cursor: pointer; display: flex; align-items: center;
@@ -1951,13 +1978,13 @@ class FritzSyncNetworkCard extends HTMLElement {
         width: 100%; min-width: 100%; border-collapse: collapse;
         table-layout: fixed; font-size: 0.92em;
       }
-      .fbn-coldef-status { width: 40px; }
       .fbn-th {
         position: sticky; top: 0; z-index: 1;
         background: var(--fbn-header-bg); color: var(--fbn-header-text);
         font-weight: 500; font-size: 0.85em; white-space: nowrap;
         padding: 8px 12px; cursor: pointer; user-select: none;
-        border-bottom: 1px solid var(--fbn-border);
+        border-bottom: 1px solid var(--fbn-border); box-sizing: border-box;
+        overflow: hidden; text-overflow: ellipsis;
       }
       .fbn-resizer {
         position: absolute; top: 0; right: -7px; bottom: 0; width: 15px;
@@ -1974,6 +2001,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-td {
         padding: 8px 12px; border-bottom: 1px solid var(--fbn-border);
         vertical-align: middle; overflow: hidden; text-overflow: ellipsis;
+        box-sizing: border-box; min-width: 0; max-width: 0;
       }
       .fbn-col-connection, .fbn-col-speed { white-space: nowrap; }
       .fbn-compact .fbn-td, .fbn-compact .fbn-th { padding: 4px 8px; }
