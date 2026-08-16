@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- FRITZ!Box-Benutzer korrekt an `fritzconnection` übergeben
+- verhindert den unspezifischen Fehler beim Einrichten der Integration
+
 ## 0.1.0
 
 - erste eigenständige Version

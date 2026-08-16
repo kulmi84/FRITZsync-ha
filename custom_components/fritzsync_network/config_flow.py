@@ -25,7 +25,7 @@ class FritzSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             def validate() -> None:
                 connection = FritzConnection(
-                    address=user_input[CONF_HOST], username=user_input[CONF_USERNAME],
+                    address=user_input[CONF_HOST], user=user_input[CONF_USERNAME],
                     password=user_input[CONF_PASSWORD], use_tls=user_input[CONF_USE_TLS], timeout=10.0,
                 )
                 FritzHosts(connection).host_numbers

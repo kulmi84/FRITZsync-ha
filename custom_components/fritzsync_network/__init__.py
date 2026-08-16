@@ -47,7 +47,7 @@ def _coordinator(hass: HomeAssistant, entry_id: str) -> FritzSyncCoordinator:
 
 async def async_setup_entry(hass: HomeAssistant, entry: FritzSyncConfigEntry) -> bool:
     connection = FritzConnection(
-        address=entry.data[CONF_HOST], username=entry.data[CONF_USERNAME],
+        address=entry.data[CONF_HOST], user=entry.data[CONF_USERNAME],
         password=entry.data[CONF_PASSWORD], use_tls=entry.data.get(CONF_USE_TLS, False), timeout=10.0,
     )
     coordinator = FritzSyncCoordinator(hass, entry, FritzHosts(connection))
