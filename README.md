@@ -4,7 +4,7 @@ Lokale Home-Assistant-Integration für FRITZ!Box-Netzwerkgeräte, Pi-hole-DNS un
 konfigurierbare Dashboard-Tabelle. Geräte lassen sich durchsuchen, filtern, umbenennen,
 aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
-![Version](https://img.shields.io/badge/Version-1.10.9-blue)
+![Version](https://img.shields.io/badge/Version-1.10.10-blue)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)
 ![FRITZ!OS](https://img.shields.io/badge/FRITZ!OS-8.x-E2001A)
@@ -15,6 +15,7 @@ aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 ## Inhalt
 
 - [Was die Integration kann](#was-die-integration-kann)
+- [Screenshots](#screenshots)
 - [Voraussetzungen](#voraussetzungen)
 - [Installation](#installation)
 - [Einrichtung](#einrichtung)
@@ -52,6 +53,7 @@ aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 - sichtbaren Gerätenamen nach Bestätigung direkt in der FRITZ!Box ändern
 - optional beim Umbenennen den passenden lokalen Pi-hole-DNS-Eintrag aktualisieren
 - manuelle Pi-hole-DNS-Einträge anzeigen, anlegen, bearbeiten und löschen
+- sichtbarer Ladecursor und drehendes Aktionssymbol während Pi-hole-Schreibvorgängen
 - bestätigter Gesamtabgleich aller geeigneten FRITZ!Box-Geräte mit Pi-hole
 - **echter XLSX-Export** der aktuell sichtbaren Spalten und gefilterten Zeilen
 - Aktualisieren lädt Geräteliste, PTR 1/2 und IP-Typ vollständig neu
@@ -66,6 +68,18 @@ aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
 Die Karte wird von der Integration mitgeliefert und automatisch als Lovelace-Ressource
 eingetragen. Es ist keine separate Installation der Karte nötig.
+
+## Screenshots
+
+Die Abbildungen verwenden ausschließlich anonymisierte Beispieldaten.
+
+### Netzwerkübersicht
+
+![FRITZ!Sync Netzwerkübersicht](docs/images/network-overview.svg)
+
+### Pi-hole-DNS bearbeiten
+
+![FRITZ!Sync Pi-hole-DNS-Editor](docs/images/pihole-dns-editor.svg)
 
 ---
 
