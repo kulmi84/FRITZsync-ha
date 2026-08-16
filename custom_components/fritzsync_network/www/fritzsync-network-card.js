@@ -1322,7 +1322,6 @@ class FritzSyncNetworkCard extends HTMLElement {
       case "name": {
         const badges = [];
         if (host.is_new) badges.push(`<button type="button" class="fbn-badge fbn-badge-new" data-ack-mac="${escapeHtml(host.mac)}" title="Neues Gerät als bekannt bestätigen"><ha-icon icon="mdi:check-circle-outline"></ha-icon>Neu bestätigen</button>`);
-        if (host.guest) badges.push('<span class="fbn-badge fbn-badge-guest">Gast</span>');
         if (host.vpn) badges.push('<span class="fbn-badge">VPN</span>');
         if (host.priority) badges.push('<span class="fbn-badge">Priorität</span>');
         return `
@@ -1851,6 +1850,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         padding: 8px 12px; border-bottom: 1px solid var(--fbn-border);
         vertical-align: middle;
       }
+      .fbn-col-connection, .fbn-col-speed { white-space: nowrap; }
       .fbn-compact .fbn-td, .fbn-compact .fbn-th { padding: 4px 8px; }
       .fbn-tr:nth-child(even) { background: var(--fbn-row-alt-bg); }
       .fbn-tr.fbn-new { background: color-mix(in srgb, var(--warning-color, #ffb300) 20%, transparent); }
