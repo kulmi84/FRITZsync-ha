@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- TLS- und FRITZ!Box-Client außerhalb des Home-Assistant-Event-Loops initialisieren
+- kompatibel mit der Blocking-Call-Erkennung aktueller Home-Assistant-Versionen
+
 ## 0.1.1
 
 - FRITZ!Box-Benutzer korrekt an `fritzconnection` übergeben
