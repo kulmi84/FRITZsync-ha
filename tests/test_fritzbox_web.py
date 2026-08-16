@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "custom_components" / "fritzsync_network"))
 
-from fritzbox_web import FritzBoxWebClient, fixed_ipv4_assignment
+from fritzbox_web import FritzBoxWebClient, fixed_ipv4_assignment, webui_ipv4
 
 
 class FritzBoxWebTests(unittest.TestCase):
@@ -19,6 +19,13 @@ class FritzBoxWebTests(unittest.TestCase):
 
     def test_missing_field_is_unknown(self):
         self.assertIsNone(fixed_ipv4_assignment({"name": "NUC"}))
+
+    def test_private_device_ip_wins_over_nested_public_router_ip(self):
+        device = {
+            "wan": {"ip": "185.22.44.50"},
+            "lan": {"ip": "192.168.9.1"},
+        }
+        self.assertEqual(webui_ipv4(device), "192.168.9.1")
 
     def test_webui_is_identity_master_and_drops_rows_without_ipv4(self):
         client = object.__new__(FritzBoxWebClient)
