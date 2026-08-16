@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.8
+
+- aktives DNS-Eingabefeld auch durch verschachtelte Home-Assistant-Shadow-Roots erkennen
+- Tabellenzeile während der Texteingabe nicht mehr durch Sensoraktualisierungen neu aufbauen
+- dadurch verhindern, dass Home Assistants globale Suche nach dem ersten Buchstaben übernimmt
+
 ## 1.10.7
 
 - bearbeitete Pi-hole-Zeile nicht länger selbst fokussierbar machen
