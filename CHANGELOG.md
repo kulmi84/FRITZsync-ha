@@ -5,6 +5,7 @@
 - manuelle Pi-hole-Zeilen mit blauem Statuspunkt und Pi-hole-Symbol anzeigen
 - Pi-hole-Zellen mit denselben Spaltenklassen, Abständen und Sticky-Regeln wie Gerätezeilen ausrichten
 - Symbol und Ausrichtung auch während der Bearbeitung beibehalten
+- Schaltfläche `Dubletten bereinigen` aus der Karten-Werkzeugleiste entfernen
 
 ## 1.9.2
 
