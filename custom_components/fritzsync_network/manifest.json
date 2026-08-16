@@ -1,7 +1,7 @@
 {
   "domain": "fritzsync_network",
   "name": "FritzSync Network",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "codeowners": [],
   "config_flow": true,
   "dependencies": ["http", "lovelace"],

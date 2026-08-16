@@ -10,7 +10,8 @@ class FritzSyncNetworkCard extends HTMLElement {
     this.selected = null;
     this.filter = "all";
     this.query = "";
-    this.attachShadow({ mode: "open" });
+    if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+    this.render();
   }
 
   set hass(hass) {

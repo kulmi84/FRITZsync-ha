@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Dashboard-Karte kann von Home Assistant mehrfach konfiguriert werden
+- verhindert den Lovelace-Fehler beim erneuten Aufruf von `setConfig()`
+
 ## 0.1.2
 
 - TLS- und FRITZ!Box-Client außerhalb des Home-Assistant-Event-Loops initialisieren
