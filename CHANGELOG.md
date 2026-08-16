@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.11
+
+- Fußleisten-Schaltfläche `Schließen` bereits beim Drücken ausführen, bevor ein Sensorupdate sie ersetzen kann
+- erfolgreich gelöschte Pi-hole-DNS-Zeilen sofort aus der Kartenansicht ausblenden
+- optimistische Ausblendung automatisch aufheben, sobald der neue Pi-hole-Sensorstand eingetroffen ist
+
 ## 1.10.10
 
 - nativen Fortschritts-Mauszeiger während Pi-hole-Speichern, Löschen und Gesamtabgleich anzeigen
