@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.10";
+const FBN_VERSION = "1.10.11";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -378,6 +378,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._piholeEditing = "";
     this._piholeDraft = false;
     this._piholeEdits = {};
+    this._piholeHiddenRecords = new Set();
     this._busyCount = 0;
     this._columnWidths = {};
   }
@@ -457,8 +458,15 @@ class FritzSyncNetworkCard extends HTMLElement {
     const state = this._stateObj();
     const attributes = (state && state.attributes) || {};
     if (!this._config.show_pihole_records || !attributes.pihole_aktiv) return [];
-    const entries = Array.isArray(attributes.pihole_eintraege)
+    const allEntries = Array.isArray(attributes.pihole_eintraege)
       ? attributes.pihole_eintraege : [];
+    const currentRecords = new Set(allEntries.map((item) => item.record));
+    for (const record of this._piholeHiddenRecords) {
+      if (!currentRecords.has(record)) this._piholeHiddenRecords.delete(record);
+    }
+    const entries = allEntries.filter(
+      (item) => !this._piholeHiddenRecords.has(item.record)
+    );
     const networks = Array.from(new Map(
       this._hosts()
         .filter((host) => host.network && host.network !== "manuell")
@@ -1470,6 +1478,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         }
         this._piholeEditing = "";
         this._piholeDraft = false;
+        if (remove) this._piholeHiddenRecords.add(oldRecord);
         delete this._piholeEdits[oldRecord || "__draft__"];
         button.blur();
         // Der normale Fokus-Schutz darf einen bewusst abgeschlossenen
@@ -1689,6 +1698,16 @@ class FritzSyncNetworkCard extends HTMLElement {
     // Dialog selbst.
     overlay.addEventListener("mousedown", (event) => {
       if (event.target === overlay) this._closePopup();
+    });
+
+    // Die dynamische Fusszeile wird bei Sensordaten aktualisiert. Darum
+    // bereits beim Druecken schliessen: Ein Neuaufbau zwischen pointerdown
+    // und click kann den urspruenglichen Button sonst austauschen.
+    overlay.addEventListener("pointerdown", (event) => {
+      if (!event.target.closest(".fbn-modal-close, .fbn-modal-close2")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this._closePopup();
     });
 
     this._onPopupKeydown = (event) => {
