@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.2
+
+- fehlerhafte Mehrfacheinträge derselben IP zuverlässig erkennen
+- aktive Geräte und echte Gerätenamen gegenüber inaktiven `PC-IP`-Platzhaltern bevorzugen
+- veraltete FRITZ!Box-Einträge mit Vorschau, erneuter Sicherheitsprüfung und Bestätigung löschen
+- erkannte Dubletten vom Pi-hole-Gesamtabgleich ausschließen
+
 ## 1.9.1
 
 - belegte Pi-hole-API-Sitzungen nach jedem Zugriff korrekt abmelden
