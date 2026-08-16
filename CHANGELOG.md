@@ -1,43 +1,12 @@
 # Changelog
 
-## 0.2.1
+## 1.0.0
 
-- Tabelle und Topologie als getrennte Karten im Kartenwähler anbieten
-- versionierte Frontend-URL verhindert veraltete Browser-Caches
+- vollständiger Neuaufbau auf Basis der stabilen Integration `fritzbox_netzwerk`
+- automatische Registrierung der Dashboard-Karte als Lovelace-Modulressource
+- sortierbare und filterbare Netzwerkgerätetabelle mit grafischem Editor
+- Detaildialog, Home-Assistant-Gerätezuordnung und Wake-on-LAN
+- Optionen für Abfrageintervall und DHCP-/statische-IP-Erfassung
+- Domain, Kartenkennung und Dienste auf FritzSync umgestellt
 
-## 0.2.0
-
-- kompakte Netzwerkgerätetabelle als neue Standardansicht
-- Tabelle und Topologie direkt in der Karte umschaltbar
-- Kartenwähler auch ohne vorab übergebene Entitäten robust unterstützen
-- doppelte Custom-Element-Registrierung verhindern
-
-## 0.1.4
-
-- FritzSync-Sensor in der Dashboard-Karte automatisch erkennen
-- fehlende oder veraltete Entitätskonfiguration verständlich anzeigen
-- Dashboard nicht mehr durch einen Konfigurationsfehler abbrechen
-
-## 0.1.3
-
-- Dashboard-Karte kann von Home Assistant mehrfach konfiguriert werden
-- verhindert den Lovelace-Fehler beim erneuten Aufruf von `setConfig()`
-
-## 0.1.2
-
-- TLS- und FRITZ!Box-Client außerhalb des Home-Assistant-Event-Loops initialisieren
-- kompatibel mit der Blocking-Call-Erkennung aktueller Home-Assistant-Versionen
-
-## 0.1.1
-
-- FRITZ!Box-Benutzer korrekt an `fritzconnection` übergeben
-- verhindert den unspezifischen Fehler beim Einrichten der Integration
-
-## 0.1.0
-
-- erste eigenständige Version
-- Mesh-Topologie mit Fallback nach Verbindungstyp
-- Gerätenamen direkt in der FRITZ!Box ändern
-- Internetzugang sperren und freigeben
-- Wake-on-LAN
-- Bestätigung vor allen schreibenden Aktionen
+Die frühere 0.x-Implementierung wurde ersetzt und wird nicht weitergeführt.

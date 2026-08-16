@@ -1,23 +1,55 @@
-"""Constants for FritzSync Network."""
+"""Konstanten der Integration fritzsync_network."""
 
-DOMAIN = "fritzsync_network"
-VERSION = "0.2.4"
-PLATFORMS = ["sensor"]
-CARD_FILENAME = "fritzsync-network-card.js"
-URL_BASE = f"/{DOMAIN}"
-CARD_URL = f"{URL_BASE}/{CARD_FILENAME}"
+from typing import Final
 
-CONF_USE_TLS = "use_tls"
-CONF_SCAN_INTERVAL = "scan_interval"
-DEFAULT_HOST = "fritz.box"
-DEFAULT_SCAN_INTERVAL = 60
+from homeassistant.const import Platform
 
-SERVICE_RENAME = "rename_device"
-SERVICE_SET_BLOCKED = "set_internet_blocked"
-SERVICE_WAKE = "wake_device"
+DOMAIN: Final = "fritzsync_network"
+MANUFACTURER: Final = "FRITZ!"
+VERSION: Final = "1.0.0"
 
-ATTR_ENTRY_ID = "entry_id"
-ATTR_MAC = "mac"
-ATTR_IP = "ip"
-ATTR_NAME = "name"
-ATTR_BLOCKED = "blocked"
+PLATFORMS: Final = [Platform.SENSOR]
+
+# --- Konfiguration (Config Entry) ---------------------------------------
+CONF_USE_TLS: Final = "use_tls"
+
+DEFAULT_HOST: Final = "fritz.box"
+DEFAULT_USERNAME: Final = "admin"
+DEFAULT_USE_TLS: Final = False
+
+# --- Optionen (Options Flow) --------------------------------------------
+CONF_SCAN_INTERVAL: Final = "scan_interval"
+CONF_TRACK_ADDRESS_SOURCE: Final = "track_address_source"
+CONF_ADDRESS_SOURCE_INTERVAL: Final = "address_source_interval"
+
+DEFAULT_SCAN_INTERVAL: Final = 60  # Sekunden
+DEFAULT_TRACK_ADDRESS_SOURCE: Final = True
+DEFAULT_ADDRESS_SOURCE_INTERVAL: Final = 15  # Minuten
+
+MIN_SCAN_INTERVAL: Final = 15
+MAX_SCAN_INTERVAL: Final = 3600
+
+# --- Attribute des Sammelsensors ----------------------------------------
+ATTR_HOSTS: Final = "hosts"
+ATTR_TOTAL: Final = "gesamt"
+ATTR_ACTIVE: Final = "aktiv"
+ATTR_INACTIVE: Final = "inaktiv"
+ATTR_GUESTS: Final = "gastnetz"
+ATTR_BLOCKED: Final = "gesperrt"
+ATTR_UPDATES: Final = "updates_verfuegbar"
+ATTR_STATIC: Final = "statische_ip"
+ATTR_LAST_SCAN: Final = "letzte_abfrage"
+ATTR_ADDRESS_SOURCE_SCAN: Final = "letzte_ip_typ_abfrage"
+ATTR_ADDRESS_SOURCE_STATE: Final = "ip_typ_erfassung"
+
+# --- Dienste -------------------------------------------------------------
+SERVICE_SET_DEVICE_NAME: Final = "set_device_name"
+SERVICE_WAKE_ON_LAN: Final = "wake_on_lan"
+
+ATTR_MAC: Final = "mac"
+ATTR_NAME: Final = "name"
+
+# --- Dashboard-Karte -----------------------------------------------------
+CARD_FILENAME: Final = "fritzsync-network-card.js"
+URL_BASE: Final = f"/{DOMAIN}"
+CARD_URL: Final = f"{URL_BASE}/{CARD_FILENAME}"

@@ -1,8 +1,10 @@
 {
   "domain": "fritzsync_network",
   "name": "FritzSync Network",
-  "version": "0.2.4",
-  "codeowners": [],
+  "version": "1.0.0",
+  "documentation": "https://github.com/kulmi84/FRITZsync-ha",
+  "issue_tracker": "https://github.com/kulmi84/FRITZsync-ha/issues",
+  "codeowners": ["@kulmi84"],
   "config_flow": true,
   "dependencies": ["http", "lovelace"],
   "integration_type": "device",
