@@ -71,6 +71,7 @@ def _walk_values(value: Any):
 
 def webui_ipv4(device: dict[str, Any]) -> str:
     """Liest die autoritative IPv4-Adresse aus einem WebUI-netDev-Objekt."""
+    candidates_found: list[str] = []
     for wanted in ("ip", "ipv4", "ip_address", "address", "addr"):
         for key, value in _walk_values(device):
             if str(key).casefold() != wanted:
@@ -82,8 +83,16 @@ def webui_ipv4(device: dict[str, Any]) -> str:
                 except ValueError:
                     continue
                 if address.version == 4 and not address.is_unspecified:
-                    return str(address)
-    return ""
+                    text = str(address)
+                    if text not in candidates_found:
+                        candidates_found.append(text)
+    # Das Router-Objekt kann neben seiner LAN-Adresse auch die oeffentliche
+    # WAN-Adresse enthalten. Fuer ein Heimnetzgeraet ist die private Adresse
+    # die richtige; die WAN-Adresse darf keinen eigenen Netzfilter erzeugen.
+    return next(
+        (value for value in candidates_found if ipaddress.ip_address(value).is_private),
+        candidates_found[0] if candidates_found else "",
+    )
 
 
 def webui_name(device: dict[str, Any]) -> str:
