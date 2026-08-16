@@ -49,6 +49,7 @@ from .const import (
 from .coordinator import FritzSyncNetworkCoordinator
 from .hosts import normalize_mac
 from .pihole import PiholeApiError, PiholeClient
+from .fritzbox_web import FritzBoxWebClient, FritzBoxWebError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -229,10 +230,14 @@ def _async_register_services(hass: HomeAssistant) -> None:
         old_name = str((current_host or {}).get("name") or "").strip()
         current_ip = str((current_host or {}).get("ip") or "").strip()
         try:
-            await hass.async_add_executor_job(
-                coordinator.fritz_hosts.set_host_name, mac, name
+            web = FritzBoxWebClient(
+                str(coordinator.entry.data[CONF_HOST]),
+                str(coordinator.entry.data[CONF_USERNAME]),
+                str(coordinator.entry.data[CONF_PASSWORD]),
+                bool(coordinator.entry.data.get(CONF_USE_TLS, DEFAULT_USE_TLS)),
             )
-        except FritzConnectionException as err:
+            await hass.async_add_executor_job(web.rename, mac, name)
+        except (FritzConnectionException, FritzBoxWebError, RequestException) as err:
             raise HomeAssistantError(
                 f"Umbenennen von {mac} fehlgeschlagen: {err}"
             ) from err

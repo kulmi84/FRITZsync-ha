@@ -1,4 +1,4 @@
-# FritzSync Network
+# FRITZ!Sync - Homeassistant
 
 Eine Home-Assistant-Integration, die alle Geräte im FRITZ!Box-Heimnetz als sortierbare
 Tabelle auf das Dashboard bringt – mit IP-Adresse, MAC-Adresse, Verbindungsart und dem
@@ -76,7 +76,7 @@ vom 11.09.2025).
 1. In HACS → Integrationen → Menü oben rechts → **Benutzerdefinierte Repositories**
 2. `https://github.com/kulmi84/FRITZsync-ha` als Kategorie *Integration*
    hinzufügen
-3. „FritzSync Network" installieren
+3. „FRITZ!Sync - Homeassistant" installieren
 4. Home Assistant neu starten
 
 ### Manuell
@@ -88,7 +88,7 @@ Assistant kopieren und neu starten.
 
 ## Einrichtung
 
-Einstellungen → Geräte & Dienste → **Integration hinzufügen** → „FritzSync Network".
+Einstellungen → Geräte & Dienste → **Integration hinzufügen** → „FRITZ!Sync - Homeassistant".
 
 | Feld | Bedeutung |
 | --- | --- |
@@ -141,7 +141,7 @@ Weitere Attribute am Hauptsensor: `gesamt`, `aktiv`, `inaktiv`, `gastnetz`, `ges
 
 ## Dashboard-Karte
 
-Karte hinzufügen → **FritzSync Network** → Sensor auswählen. Alles Weitere lässt sich im
+Karte hinzufügen → **FRITZ!Sync - Homeassistant** → Sensor auswählen. Alles Weitere lässt sich im
 grafischen Editor einstellen.
 
 ### Spalten
