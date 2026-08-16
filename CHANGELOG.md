@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.7
+
+- bearbeitete Pi-hole-Zeile nicht länger selbst fokussierbar machen
+- laufende DNS-Eingaben im Kartenstatus puffern und bei Sensoraktualisierungen wiederherstellen
+- Namensfeld nach einem unvermeidbaren Neuaufbau erneut fokussieren und Cursor ans Textende setzen
+
 ## 1.10.6
 
 - Fokus nach dem Öffnen einer manuellen Pi-hole-DNS-Zeile zuverlässig im Namensfeld halten
