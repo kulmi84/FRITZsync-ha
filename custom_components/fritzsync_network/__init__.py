@@ -17,7 +17,8 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
-    ATTR_BLOCKED, ATTR_ENTRY_ID, ATTR_IP, ATTR_MAC, ATTR_NAME, CARD_PATH, CARD_URL,
+    ATTR_BLOCKED, ATTR_ENTRY_ID, ATTR_IP, ATTR_MAC, ATTR_NAME, CARD_PATH,
+    CARD_RESOURCE_URL, CARD_URL,
     CONF_USE_TLS, DOMAIN, PLATFORMS, SERVICE_RENAME, SERVICE_SET_BLOCKED, SERVICE_WAKE,
 )
 from .coordinator import FritzSyncCoordinator
@@ -34,7 +35,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     await hass.http.async_register_static_paths([
         StaticPathConfig(CARD_URL, str(card_dir / Path(CARD_PATH).name), False)
     ])
-    add_extra_js_url(hass, CARD_URL)
+    add_extra_js_url(hass, CARD_RESOURCE_URL)
     return True
 
 

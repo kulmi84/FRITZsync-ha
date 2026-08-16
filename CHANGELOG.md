@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Tabelle und Topologie als getrennte Karten im Kartenwähler anbieten
+- versionierte Frontend-URL verhindert veraltete Browser-Caches
+
 ## 0.2.0
 
 - kompakte Netzwerkgerätetabelle als neue Standardansicht

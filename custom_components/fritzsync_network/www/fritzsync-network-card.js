@@ -186,9 +186,23 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
   }
 }
 
+class FritzSyncNetworkTopologyCard extends FritzSyncNetworkCard {
+  setConfig(config) {
+    super.setConfig({ ...config, view: config.view || "topology" });
+  }
+
+  static getStubConfig(hass, entities) {
+    return { ...FritzSyncNetworkCard.getStubConfig(hass, entities), view: "topology" };
+  }
+}
+
 if (!customElements.get("fritzsync-network-card")) customElements.define("fritzsync-network-card", FritzSyncNetworkCard);
+if (!customElements.get("fritzsync-network-topology-card")) customElements.define("fritzsync-network-topology-card", FritzSyncNetworkTopologyCard);
 if (!customElements.get("fritzsync-network-card-editor")) customElements.define("fritzsync-network-card-editor", FritzSyncNetworkCardEditor);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === "fritzsync-network-card")) {
-  window.customCards.push({ type: "fritzsync-network-card", name: "FritzSync Network", description: "Netzwerkgeräte als Tabelle oder Topologie" });
+  window.customCards.push({ type: "fritzsync-network-card", name: "FritzSync Network", description: "Sortierbare Tabelle aller FRITZ!Box-Netzwerkgeräte" });
+}
+if (!window.customCards.some((card) => card.type === "fritzsync-network-topology-card")) {
+  window.customCards.push({ type: "fritzsync-network-topology-card", name: "FritzSync Network Topology", description: "Interaktive FRITZ!Box-Netzwerktopologie" });
 }
