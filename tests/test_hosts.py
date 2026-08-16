@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "custom_components" / "fritzs
 from hosts import (
     apply_fritzsync_fields,
     build_hosts,
-    merge_ptr_maps,
     normalize_host,
     normalize_mac,
     summarize,
@@ -17,16 +16,6 @@ from hosts import (
 
 
 class HostTests(unittest.TestCase):
-    def test_merge_ptr_maps_prefers_first_resolver_and_deduplicates(self):
-        merged = merge_ptr_maps(
-            {"192.0.2.250": ["switch.fritz.box"]},
-            {"192.0.2.250": ["old-name.fritz.box", "SWITCH.fritz.box"]},
-        )
-        self.assertEqual(
-            merged["192.0.2.250"],
-            ["switch.fritz.box", "old-name.fritz.box"],
-        )
-
     def test_normalize_mac(self):
         self.assertEqual(normalize_mac("aa-bb-cc-dd-ee-ff"), "AA:BB:CC:DD:EE:FF")
 
