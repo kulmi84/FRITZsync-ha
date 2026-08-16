@@ -398,7 +398,46 @@ def build_hosts(
     ]
     apply_address_sources(hosts, address_sources)
     apply_ha_devices(hosts, ha_devices)
+    mark_stale_ip_duplicates(hosts)
     hosts.sort(key=lambda host: ip_sort_key(host["ip"]))
+    return hosts
+
+
+def _host_quality(host: dict[str, Any]) -> tuple[int, ...]:
+    """Bewertet konkurrierende Datensaetze derselben IP deterministisch."""
+    name = str(host.get("name") or "").strip().lower()
+    ip = str(host.get("ip") or "").strip()
+    placeholder = name == f"pc-{ip.replace('.', '-')}".lower()
+    return (
+        int(bool(host.get("active"))),
+        int(not placeholder),
+        int(bool(host.get("friendly_name"))),
+        int(bool(host.get("name_writeable"))),
+        int(host.get("connection") != CONNECTION_UNKNOWN),
+        int(bool(host.get("ha_name"))),
+        as_int(host.get("index")),
+    )
+
+
+def mark_stale_ip_duplicates(hosts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Markiert eindeutig veraltete, inaktive Datensaetze je belegter IP.
+
+    Geloescht wird hier bewusst nichts. Die Markierung dient der bestaetigten
+    Bereinigungsaktion; der Gewinner ist immer der qualitativ beste Datensatz.
+    """
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for host in hosts:
+        host["stale_ip_duplicate"] = False
+        ip = str(host.get("ip") or "").strip()
+        if ip:
+            groups.setdefault(ip, []).append(host)
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        winner = max(group, key=_host_quality)
+        for host in group:
+            if host is not winner and not host.get("active"):
+                host["stale_ip_duplicate"] = True
     return hosts
 
 
