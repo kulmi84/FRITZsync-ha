@@ -4,7 +4,7 @@ Lokale Home-Assistant-Integration für FRITZ!Box-Netzwerkgeräte, Pi-hole-DNS un
 konfigurierbare Dashboard-Tabelle. Geräte lassen sich durchsuchen, filtern, umbenennen,
 aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
-![Version](https://img.shields.io/badge/Version-1.10.14-blue)
+![Version](https://img.shields.io/badge/Version-1.10.15-blue)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)
 ![FRITZ!OS](https://img.shields.io/badge/FRITZ!OS-8.x-E2001A)
@@ -364,8 +364,8 @@ Benennt sowohl den sichtbaren Netzwerkgerätenamen als auch den zugrunde liegend
 Host-/DNS-Namen in der FRITZ!Box um. Dadurch werden anschließend auch die direkt von der
 FRITZ!Box gelieferten Werte `PTR 1` und `PTR 2` aktualisiert. Bei aktivierter
 Pi-hole-Synchronisierung wird der zugehörige lokale DNS-Eintrag danach ebenfalls angepasst.
-Existieren für dieselbe IP mehrere historische FRITZ!Box-Hostdatensätze, werden deren
-Host-/DNS-Namen gemeinsam aktualisiert, damit kein alter Name als zweite PTR-Antwort bleibt.
+Der in FRITZ!OS schreibgeschützt dargestellte Wert „Erstverbindung ins Heimnetz als“ kann
+weiterhin als zusätzliche PTR-Antwort erscheinen; er ist nicht der änderbare Gerätename.
 
 ```yaml
 action: fritzsync_network.set_device_name
