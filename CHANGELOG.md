@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0
+
+- `Aktiv` ist der Standardfilter
+- zusätzliche Filterchips werden automatisch für jedes erkannte Subnetz erzeugt
+- kompakte Netzangabe: `LAN` beziehungsweise `Gast (LAN/WLAN)`
+- nach dem ersten Basisabgleich neu erkannte MAC-Adressen werden gelb markiert
+- neue Geräte können über das `Neu`-Abzeichen dauerhaft bestätigt werden
+- zusätzlicher Filter `Neu`
+
 ## 1.1.0
 
 - Spalten `Netz`, `PTR 1`, `PTR 2` und `Kommentar` aus dem separaten FRITZSync-Projekt übernommen

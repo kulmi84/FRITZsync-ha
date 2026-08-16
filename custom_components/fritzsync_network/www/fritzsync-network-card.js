@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.1.0";
+const FBN_VERSION = "1.2.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -108,6 +108,7 @@ const FILTERS = [
   { key: "gast", label: "Gast", icon: "mdi:account-question" },
   { key: "gesperrt", label: "Gesperrt", icon: "mdi:web-off" },
   { key: "update", label: "Update", icon: "mdi:package-down" },
+  { key: "neu", label: "Neu", icon: "mdi:new-box" },
 ];
 
 /** Standardfarbe je Farbschluessel, wenn der Nutzer nichts gesetzt hat. */
@@ -304,7 +305,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._config = withDefaults({});
     this._hass = null;
     this._search = "";
-    this._filter = "alle";
+    this._filter = "aktiv";
     this._sortBy = "ip";
     this._sortDir = "asc";
     this._signature = "";
@@ -399,6 +400,7 @@ class FritzSyncNetworkCard extends HTMLElement {
           host.ptr1,
           host.ptr2,
           host.comment,
+          host.is_new ? 1 : 0,
           host.ha_name,
           host.static_ip,
           host.blocked ? 1 : 0,
@@ -437,7 +439,14 @@ class FritzSyncNetworkCard extends HTMLElement {
       case "update":
         hosts = hosts.filter((host) => host.update_available);
         break;
+      case "neu":
+        hosts = hosts.filter((host) => host.is_new);
+        break;
       default:
+        if (this._filter.startsWith("network:")) {
+          const network = this._filter.slice("network:".length);
+          hosts = hosts.filter((host) => host.network === network);
+        }
         break;
     }
 
@@ -475,6 +484,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     const signature = this._computeSignature(hosts);
     const changed = signature !== this._signature;
     this._signature = signature;
+    if (changed) this._buildFilters();
     this._renderSummary();
     this._renderBody();
     if (changed) this._renderHead();
@@ -537,18 +547,33 @@ class FritzSyncNetworkCard extends HTMLElement {
       container.hidden = true;
       return;
     }
-    container.innerHTML = FILTERS.map(
+    const networks = Array.from(
+      new Map(
+        this._hosts()
+          .filter((host) => host.network)
+          .map((host) => [host.network, host.zone || "Netz"])
+      ).entries()
+    ).map(([network, zone]) => ({
+      key: `network:${network}`,
+      label: `${zone}: ${network}`,
+      icon: zone === "Heimnetz" ? "mdi:lan" : "mdi:account-network",
+    }));
+    this._availableFilters = [...FILTERS, ...networks];
+    container.innerHTML = this._availableFilters.map(
       (filter) => `
         <button class="fbn-chip" data-filter="${filter.key}" type="button"
                 aria-pressed="${filter.key === this._filter}">
           <ha-icon icon="${filter.icon}"></ha-icon><span>${escapeHtml(filter.label)}</span>
         </button>`
     ).join("");
-    container.addEventListener("click", (event) => {
-      const button = event.target.closest(".fbn-chip");
-      if (!button) return;
-      this._setFilter(button.dataset.filter);
-    });
+    if (!container.dataset.bound) {
+      container.dataset.bound = "1";
+      container.addEventListener("click", (event) => {
+        const button = event.target.closest(".fbn-chip");
+        if (!button) return;
+        this._setFilter(button.dataset.filter);
+      });
+    }
   }
 
   /* -- Waagerechtes Blättern (Smartphone) --------------------------- */
@@ -615,7 +640,7 @@ class FritzSyncNetworkCard extends HTMLElement {
 
   /** Setzt den aktiven Filter und aktualisiert Chips, Zusammenfassung, Liste. */
   _setFilter(key) {
-    if (!FILTERS.some((filter) => filter.key === key)) return;
+    if (!(this._availableFilters || FILTERS).some((filter) => filter.key === key)) return;
     if (key === this._filter) return;
     this._filter = key;
     this.querySelectorAll(".fbn-chip").forEach((chip) => {
@@ -770,6 +795,12 @@ class FritzSyncNetworkCard extends HTMLElement {
     if (!body.dataset.bound) {
       body.dataset.bound = "1";
       body.addEventListener("click", (event) => {
+        const acknowledge = event.target.closest("[data-ack-mac]");
+        if (acknowledge) {
+          event.stopPropagation();
+          this._acknowledgeDevice(acknowledge.dataset.ackMac, acknowledge);
+          return;
+        }
         // Klick auf den IP-Link oeffnet die Weboberflaeche, nicht das Popup.
         if (event.target.closest("a")) return;
         const row = event.target.closest("tr[data-mac]");
@@ -777,6 +808,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       });
       body.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
+        if (event.target.closest("[data-ack-mac]")) return;
         // Enter auf dem fokussierten IP-Link folgt dem Link.
         if (event.target.closest("a")) return;
         const row = event.target.closest("tr[data-mac]");
@@ -819,6 +851,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     const interactive = this._rowInteractive(host);
     const classes = ["fbn-tr"];
     if (!host.active) classes.push("fbn-inactive");
+    if (host.is_new) classes.push("fbn-new");
     let extra = "";
     if (interactive) {
       classes.push("fbn-clickable");
@@ -844,6 +877,7 @@ class FritzSyncNetworkCard extends HTMLElement {
 
       case "name": {
         const badges = [];
+        if (host.is_new) badges.push(`<button type="button" class="fbn-badge fbn-badge-new" data-ack-mac="${escapeHtml(host.mac)}" title="Neues Gerät bestätigen">Neu</button>`);
         if (host.guest) badges.push('<span class="fbn-badge fbn-badge-guest">Gast</span>');
         if (host.vpn) badges.push('<span class="fbn-badge">VPN</span>');
         if (host.priority) badges.push('<span class="fbn-badge">Priorität</span>');
@@ -874,7 +908,9 @@ class FritzSyncNetworkCard extends HTMLElement {
         return `<span class="fbn-mono fbn-dim">${escapeHtml(host.mac || "—")}</span>`;
 
       case "network":
-        return `<span>${escapeHtml(host.zone || "—")}</span><br><small class="fbn-mono fbn-dim">${escapeHtml(host.network || "")}</small>`;
+        return host.guest || host.zone === "Gast/anderes Netz"
+          ? '<span class="fbn-badge fbn-badge-guest">Gast (LAN/WLAN)</span>'
+          : '<span class="fbn-badge">LAN</span>';
 
       case "ptr1":
         return `<span class="fbn-mono fbn-dim">${escapeHtml(host.ptr1 || "—")}</span>`;
@@ -1220,6 +1256,14 @@ class FritzSyncNetworkCard extends HTMLElement {
       .catch(() => { button.disabled = false; button.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon>Fehlgeschlagen'; });
   }
 
+  _acknowledgeDevice(mac, button) {
+    if (!this._hass || !mac) return;
+    if (!confirm("Neues Gerät wirklich als bekannt bestätigen?")) return;
+    button.disabled = true;
+    this._hass.callService("fritzsync_network", "acknowledge_device", { mac })
+      .catch(() => { button.disabled = false; });
+  }
+
   /** Schliesst das Popup und raeumt Listener und Fokus auf. */
   _closePopup() {
     if (!this._popup) return;
@@ -1332,6 +1376,8 @@ class FritzSyncNetworkCard extends HTMLElement {
       }
       .fbn-compact .fbn-td, .fbn-compact .fbn-th { padding: 4px 8px; }
       .fbn-tr:nth-child(even) { background: var(--fbn-row-alt-bg); }
+      .fbn-tr.fbn-new { background: color-mix(in srgb, var(--warning-color, #ffb300) 20%, transparent); }
+      .fbn-tr.fbn-new:hover { background: color-mix(in srgb, var(--warning-color, #ffb300) 28%, transparent); }
       .fbn-tr:last-child .fbn-td { border-bottom: none; }
       .fbn-inactive { opacity: 0.55; }
       .fbn-clickable { cursor: pointer; }
@@ -1345,6 +1391,10 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-sticky .fbn-col-name {
         position: sticky; left: 40px; z-index: 2; box-sizing: border-box;
         background: var(--card-background-color, #fff);
+      }
+      .fbn-sticky .fbn-new .fbn-col-status,
+      .fbn-sticky .fbn-new .fbn-col-name {
+        background: color-mix(in srgb, var(--warning-color, #ffb300) 20%, var(--card-background-color, #fff));
       }
       .fbn-sticky .fbn-th.fbn-col-status,
       .fbn-sticky .fbn-th.fbn-col-name {
@@ -1378,6 +1428,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         font-size: 0.72em; border: 1px solid var(--fbn-border); white-space: nowrap;
       }
       .fbn-badge-guest { color: var(--fbn-guest); border-color: var(--fbn-guest); }
+      .fbn-badge-new { color: #5d4300; background: var(--warning-color, #ffb300); border-color: var(--warning-color, #ffb300); cursor: pointer; font: inherit; }
       .fbn-badge-static { color: var(--fbn-static); border-color: var(--fbn-static); }
       .fbn-icon-blocked { color: var(--fbn-blocked); --mdc-icon-size: 18px; width: 18px; height: 18px; }
       .fbn-icon-update { color: var(--fbn-update); --mdc-icon-size: 18px; width: 18px; height: 18px; }

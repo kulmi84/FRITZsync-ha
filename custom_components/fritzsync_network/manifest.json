@@ -1,7 +1,7 @@
 {
   "domain": "fritzsync_network",
   "name": "FritzSync Network",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "documentation": "https://github.com/kulmi84/FRITZsync-ha",
   "issue_tracker": "https://github.com/kulmi84/FRITZsync-ha/issues",
   "codeowners": ["@kulmi84"],

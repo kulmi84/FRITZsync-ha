@@ -34,6 +34,7 @@ from .const import (
     PLATFORMS,
     SERVICE_SET_DEVICE_NAME,
     SERVICE_SET_COMMENT,
+    SERVICE_ACKNOWLEDGE_DEVICE,
     SERVICE_WAKE_ON_LAN,
     URL_BASE,
     VERSION,
@@ -101,7 +102,12 @@ async def async_unload_entry(
     """Entlaedt einen Konfigurationseintrag."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded and not hass.config_entries.async_loaded_entries(DOMAIN):
-        for service in (SERVICE_SET_DEVICE_NAME, SERVICE_WAKE_ON_LAN, SERVICE_SET_COMMENT):
+        for service in (
+            SERVICE_SET_DEVICE_NAME,
+            SERVICE_WAKE_ON_LAN,
+            SERVICE_SET_COMMENT,
+            SERVICE_ACKNOWLEDGE_DEVICE,
+        ):
             hass.services.async_remove(DOMAIN, service)
     return unloaded
 
@@ -236,6 +242,10 @@ def _async_register_services(hass: HomeAssistant) -> None:
             normalize_mac(call.data[ATTR_MAC]), call.data[ATTR_COMMENT]
         )
 
+    async def _handle_acknowledge_device(call: ServiceCall) -> None:
+        coordinator = _first_coordinator()
+        await coordinator.async_acknowledge_device(normalize_mac(call.data[ATTR_MAC]))
+
     if not hass.services.has_service(DOMAIN, SERVICE_SET_DEVICE_NAME):
         hass.services.async_register(
             DOMAIN, SERVICE_SET_DEVICE_NAME, _handle_set_device_name, schema=MAC_SCHEMA
@@ -247,4 +257,11 @@ def _async_register_services(hass: HomeAssistant) -> None:
     if not hass.services.has_service(DOMAIN, SERVICE_SET_COMMENT):
         hass.services.async_register(
             DOMAIN, SERVICE_SET_COMMENT, _handle_set_comment, schema=COMMENT_SCHEMA
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_ACKNOWLEDGE_DEVICE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_ACKNOWLEDGE_DEVICE,
+            _handle_acknowledge_device,
+            schema=MAC_SCHEMA,
         )

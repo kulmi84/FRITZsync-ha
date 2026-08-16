@@ -65,6 +65,11 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._comment_store = Store(
             hass, 1, f"{DOMAIN}.{entry.entry_id}.device_comments"
         )
+        self._acknowledged_macs: set[str] = set()
+        self._new_devices_initialized = False
+        self._new_device_store = Store(
+            hass, 1, f"{DOMAIN}.{entry.entry_id}.acknowledged_devices"
+        )
 
         super().__init__(
             hass,
@@ -207,6 +212,16 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._comments,
             str(self.entry.data[CONF_HOST]),
         )
+        current_macs = {mac_key(host.get("mac")) for host in hosts if mac_key(host.get("mac"))}
+        if not self._new_devices_initialized:
+            # Beim ersten Start bilden die vorhandenen Geraete den Ausgangsbestand.
+            self._acknowledged_macs.update(current_macs)
+            self._new_devices_initialized = True
+            await self._new_device_store.async_save(
+                {"initialized": True, "acknowledged": sorted(self._acknowledged_macs)}
+            )
+        for host in hosts:
+            host["is_new"] = mac_key(host.get("mac")) not in self._acknowledged_macs
 
         return {
             "hosts": hosts,
@@ -234,6 +249,15 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if mac_key(key) and str(value).strip()
             }
 
+        new_state = await self._new_device_store.async_load()
+        if isinstance(new_state, dict) and new_state.get("initialized"):
+            self._new_devices_initialized = True
+            self._acknowledged_macs = {
+                mac_key(value)
+                for value in new_state.get("acknowledged", [])
+                if mac_key(value)
+            }
+
     async def async_set_comment(self, mac: str, comment: str) -> None:
         """Persist or remove a device comment and refresh the sensor."""
         key = mac_key(mac)
@@ -245,4 +269,16 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         else:
             self._comments.pop(key, None)
         await self._comment_store.async_save(self._comments)
+        await self.async_request_refresh()
+
+    async def async_acknowledge_device(self, mac: str) -> None:
+        """Mark a newly detected MAC address as reviewed."""
+        key = mac_key(mac)
+        if not key:
+            raise ValueError("Ungueltige MAC-Adresse")
+        self._acknowledged_macs.add(key)
+        self._new_devices_initialized = True
+        await self._new_device_store.async_save(
+            {"initialized": True, "acknowledged": sorted(self._acknowledged_macs)}
+        )
         await self.async_request_refresh()

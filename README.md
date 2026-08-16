@@ -150,7 +150,7 @@ grafischen Editor einstellen.
 | --- | --- | --- |
 | Status | an | `Active` – farbiger Punkt |
 | FRITZ!Box-Name | an | Name aus der FRITZ!Box, samt Abzeichen für Gast, VPN und Priorität |
-| Netz | an | Heimnetz bzw. Gast/anderes Netz und berechnetes `/24`-Subnetz |
+| Netz | an | Kompakt als `LAN` bzw. `Gast (LAN/WLAN)`; Subnetze stehen als Filterchips bereit |
 | IP-Adresse | an | `IPAddress` |
 | MAC-Adresse | an | `MACAddress` |
 | PTR 1 | an | Erste PTR-Antwort des DNS-Servers der FRITZ!Box |
