@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.4
+
+- gespeicherte Pixelbreiten proportional auf die verfügbare Kartenbreite einpassen
+- beim Ziehen einer Spaltengrenze die Nachbarspalte gegensinnig verändern
+- Gesamtbreite der Tabelle konstant halten und horizontalen Scrollbalken entfernen
+
 ## 1.10.3
 
 - Tabelle standardmäßig auf die verfügbare Kartenbreite einpassen
