@@ -353,7 +353,11 @@ def apply_address_sources(
         source = str(entry.get("address_source") or "").strip()
         if source:
             host["address_source"] = source
+            # AddressSource=DHCP beschreibt nur, wie die Adresse bezogen wird.
+            # Die FRITZ!Box-Option „dauerhaft zuweisen“ kommt separat aus der WebUI.
             host["static_ip"] = source.lower() == ADDRESS_SOURCE_STATIC.lower()
+        if isinstance(entry.get("static_ip"), bool):
+            host["static_ip"] = entry["static_ip"]
         lease = entry.get("lease_time_remaining")
         if lease is not None:
             host["lease_time_remaining"] = as_int(lease)
