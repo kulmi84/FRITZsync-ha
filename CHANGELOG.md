@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.14
+
+- beim bestätigten Umbenennen alle FRITZ!Box-Hostdatensätze derselben IP ermitteln
+- deren Host-/DNS-Namen gemeinsam aktualisieren und einzeln über SpecificHostEntry sowie Hostliste verifizieren
+- verhindern, dass ein historischer Datensatz weiterhin den alten Namen als `PTR 1` liefert, während der neue Name nur als `PTR 2` erscheint
+- den sichtbaren WebUI-Gerätenamen weiterhin ausschließlich am ausgewählten Gerät ändern
+
 ## 1.10.13
 
 - beim Umbenennen zusätzlich den FRITZ!Box-Host-/DNS-Namen über `X_AVM-DE_SetHostNameByMACAddress` schreiben
