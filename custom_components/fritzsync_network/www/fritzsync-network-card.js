@@ -31,7 +31,26 @@ class FritzSyncNetworkCard extends HTMLElement {
 
   getCardSize() { return 8; }
 
-  static getConfigElement() { return document.createElement("fritzsync-network-card-editor"); }
+  static getConfigForm() {
+    return {
+      schema: [
+        { name: "entity", selector: { entity: { filter: { domain: "sensor" } } } },
+        { name: "title", selector: { text: {} } },
+        {
+          name: "view",
+          selector: {
+            select: {
+              options: [
+                { value: "table", label: "Tabelle" },
+                { value: "topology", label: "Topologie" },
+              ],
+            },
+          },
+        },
+        { name: "show_offline", selector: { boolean: {} } },
+      ],
+    };
+  }
   static getStubConfig(hass, entities) {
     const candidates = Array.isArray(entities) ? entities : Object.keys(hass?.states || {});
     const entity = candidates.find((id) => {
@@ -174,20 +193,6 @@ class FritzSyncNetworkCard extends HTMLElement {
   `; }
 }
 
-class FritzSyncNetworkCardEditor extends HTMLElement {
-  setConfig(config) { this.config = config; this.render(); }
-  set hass(hass) { this._hass = hass; this.render(); }
-  render() {
-    if (!this.config) return;
-    const entities = this._hass ? Object.keys(this._hass.states).filter((id) => id.startsWith("sensor.") && id.includes("fritzsync")) : [];
-    this.innerHTML = `<style>label{display:block;margin:12px 0}input,select{display:block;width:100%;box-sizing:border-box;padding:9px;margin-top:4px}</style><label>Entität<select name="entity">${entities.map((id) => `<option ${id===this.config.entity?"selected":""}>${id}</option>`).join("")}</select></label><label>Titel<input name="title" value="${this.config.title || "Netzwerkgeräte"}"></label><label>Startansicht<select name="view"><option value="table" ${this.config.view !== "topology" ? "selected" : ""}>Tabelle</option><option value="topology" ${this.config.view === "topology" ? "selected" : ""}>Topologie</option></select></label><label><input style="display:inline;width:auto" type="checkbox" name="show_offline" ${this.config.show_offline !== false ? "checked" : ""}> Offline-Geräte anzeigen</label>`;
-    this.querySelectorAll("input,select").forEach((field) => field.onchange = () => {
-      const config = { ...this.config, [field.name]: field.type === "checkbox" ? field.checked : field.value };
-      this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
-    });
-  }
-}
-
 class FritzSyncNetworkTopologyCard extends FritzSyncNetworkCard {
   setConfig(config) {
     config = config || {};
@@ -201,11 +206,10 @@ class FritzSyncNetworkTopologyCard extends FritzSyncNetworkCard {
 
 if (!customElements.get("fritzsync-network-card")) customElements.define("fritzsync-network-card", FritzSyncNetworkCard);
 if (!customElements.get("fritzsync-network-topology-card")) customElements.define("fritzsync-network-topology-card", FritzSyncNetworkTopologyCard);
-if (!customElements.get("fritzsync-network-card-editor")) customElements.define("fritzsync-network-card-editor", FritzSyncNetworkCardEditor);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === "fritzsync-network-card")) {
-  window.customCards.push({ type: "fritzsync-network-card", name: "FritzSync Network", description: "Sortierbare Tabelle aller FRITZ!Box-Netzwerkgeräte" });
+  window.customCards.push({ type: "fritzsync-network-card", name: "FritzSync Network", preview: false, description: "Sortierbare Tabelle aller FRITZ!Box-Netzwerkgeräte" });
 }
 if (!window.customCards.some((card) => card.type === "fritzsync-network-topology-card")) {
-  window.customCards.push({ type: "fritzsync-network-topology-card", name: "FritzSync Network Topology", description: "Interaktive FRITZ!Box-Netzwerktopologie" });
+  window.customCards.push({ type: "fritzsync-network-topology-card", name: "FritzSync Network Topology", preview: false, description: "Interaktive FRITZ!Box-Netzwerktopologie" });
 }

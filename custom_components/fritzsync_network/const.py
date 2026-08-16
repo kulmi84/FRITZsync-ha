@@ -3,7 +3,7 @@
 DOMAIN = "fritzsync_network"
 PLATFORMS = ["sensor"]
 CARD_URL = "/fritzsync_network/fritzsync-network-card.js"
-CARD_RESOURCE_URL = f"{CARD_URL}?v=0.2.2"
+CARD_RESOURCE_URL = f"{CARD_URL}?v=0.2.3"
 CARD_PATH = "www/fritzsync-network-card.js"
 
 CONF_USE_TLS = "use_tls"
