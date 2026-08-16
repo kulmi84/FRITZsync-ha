@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.0
+
+- Anzeige in HACS und Home Assistant in `FRITZ!Sync - Homeassistant` umbenannt
+- sichtbaren FRITZ!Box-Gerätenamen über den verifizierten FRITZ!OS-WebUI-Weg ändern
+- dauerhafte IPv4-Zuweisung getrennt von `AddressSource=DHCP` erkennen
+- optionalen Aktualisieren-Button zur Karte hinzugefügt
+
 ## 1.2.0
 
 - `Aktiv` ist der Standardfilter
