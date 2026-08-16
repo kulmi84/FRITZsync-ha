@@ -1,7 +1,7 @@
 {
   "domain": "fritzsync_network",
   "name": "FRITZ!Sync - Homeassistant",
-  "version": "1.10.10",
+  "version": "1.10.11",
   "documentation": "https://github.com/kulmi84/FRITZsync-ha",
   "issue_tracker": "https://github.com/kulmi84/FRITZsync-ha/issues",
   "codeowners": ["@kulmi84"],
