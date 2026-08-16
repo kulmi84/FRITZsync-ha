@@ -373,6 +373,15 @@ Kartencodes im Testaufbau.
 
 ## Versionshistorie
 
+### 1.6.0 – Spaltenreihenfolge und Filterauswahl
+
+- Spalten lassen sich im Karteneditor per Drag-and-drop oder über Hoch/Runter-Knöpfe
+  frei anordnen; ausgeblendete Spalten behalten ihre Position.
+- Unter **Darstellung** kann jeder Filterchip einzeln ein- oder ausgeblendet werden,
+  einschließlich der dynamischen Heimnetz-/Gast-Netzfilter.
+- Der unruhige Hover-Farbwechsel der Tabellenzeilen wurde entfernt. Mauszeiger und
+  Tastaturfokus erzeugen jetzt keinen blinkenden Spalten-/Zeileneffekt mehr.
+
 ### 1.5.1 – Speichern der Pi-hole-Einstellungen
 
 - Verhindert einen doppelten Integrations-Reload beim Speichern der Optionen.

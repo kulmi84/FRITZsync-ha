@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.5.1";
+const FBN_VERSION = "1.6.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -44,11 +44,20 @@ const CONFIG_DEFAULTS = {
   show_speed: true,
   show_model: false,
   show_type: false,
+  column_order: [],
 
   // Darstellung
   show_summary: true,
   show_search: true,
   show_filter: true,
+  show_filter_all: true,
+  show_filter_active: true,
+  show_filter_inactive: true,
+  show_filter_guest: true,
+  show_filter_blocked: true,
+  show_filter_update: true,
+  show_filter_new: true,
+  show_filter_networks: true,
   hide_inactive: false,
   compact: false,
   max_rows: 0,
@@ -102,13 +111,13 @@ const COLUMNS = [
 ];
 
 const FILTERS = [
-  { key: "alle", label: "Alle", icon: "mdi:format-list-bulleted" },
-  { key: "aktiv", label: "Aktiv", icon: "mdi:lan-connect" },
-  { key: "inaktiv", label: "Inaktiv", icon: "mdi:lan-disconnect" },
-  { key: "gast", label: "Gast", icon: "mdi:account-question" },
-  { key: "gesperrt", label: "Gesperrt", icon: "mdi:web-off" },
-  { key: "update", label: "Update", icon: "mdi:package-down" },
-  { key: "neu", label: "Neu", icon: "mdi:new-box" },
+  { key: "alle", cfg: "show_filter_all", label: "Alle", icon: "mdi:format-list-bulleted" },
+  { key: "aktiv", cfg: "show_filter_active", label: "Aktiv", icon: "mdi:lan-connect" },
+  { key: "inaktiv", cfg: "show_filter_inactive", label: "Inaktiv", icon: "mdi:lan-disconnect" },
+  { key: "gast", cfg: "show_filter_guest", label: "Gast", icon: "mdi:account-question" },
+  { key: "gesperrt", cfg: "show_filter_blocked", label: "Gesperrt", icon: "mdi:web-off" },
+  { key: "update", cfg: "show_filter_update", label: "Update", icon: "mdi:package-down" },
+  { key: "neu", cfg: "show_filter_new", label: "Neu", icon: "mdi:new-box" },
 ];
 
 /** Standardfarbe je Farbschluessel, wenn der Nutzer nichts gesetzt hat. */
@@ -149,6 +158,14 @@ const COLOR_EDITOR_FIELDS = [
 /** Fuellt fehlende Schluessel mit den Standardwerten auf. */
 function withDefaults(config) {
   return { ...CONFIG_DEFAULTS, ...(config || {}) };
+}
+
+function orderedColumns(config) {
+  const known = new Map(COLUMNS.map((column) => [column.key, column]));
+  const requested = Array.isArray(config.column_order) ? config.column_order : [];
+  const keys = [...new Set(requested.filter((key) => known.has(key)))];
+  for (const column of COLUMNS) if (!keys.includes(column.key)) keys.push(column.key);
+  return keys.map((key) => known.get(key));
 }
 
 /**
@@ -415,7 +432,12 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   _visibleColumns() {
-    return COLUMNS.filter((column) => this._config[column.cfg]);
+    return orderedColumns(this._config).filter((column) => this._config[column.cfg]);
+  }
+
+  _stickyColumnsEnabled() {
+    const keys = this._visibleColumns().map((column) => column.key);
+    return this._config.sticky_name && keys[0] === "status" && keys[1] === "name";
   }
 
   _filteredHosts() {
@@ -504,7 +526,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     card.innerHTML = `
       <style>${this._styles()}</style>
       <div class="fbn-root${config.compact ? " fbn-compact" : ""}${
-      config.sticky_name ? " fbn-sticky" : ""
+      this._stickyColumnsEnabled() ? " fbn-sticky" : ""
     }">
         <div class="fbn-toolbar">
           <div class="fbn-filters"></div>
@@ -561,7 +583,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       container.hidden = true;
       return;
     }
-    const networks = Array.from(
+    const networks = this._config.show_filter_networks ? Array.from(
       new Map(
         this._hosts()
           .filter((host) => host.network)
@@ -571,8 +593,15 @@ class FritzSyncNetworkCard extends HTMLElement {
       key: `network:${network}`,
       label: `${zone === "Gast/anderes Netz" ? "Gast" : zone}: ${network}`,
       icon: zone === "Heimnetz" ? "mdi:lan" : "mdi:account-network",
-    }));
-    this._availableFilters = [...FILTERS, ...networks];
+    })) : [];
+    const staticFilters = FILTERS.filter((filter) => this._config[filter.cfg]);
+    this._availableFilters = [...staticFilters, ...networks];
+    if (!staticFilters.some((filter) => filter.key === this._filter)) {
+      this._filter = staticFilters.some((filter) => filter.key === "aktiv")
+        ? "aktiv"
+        : "alle";
+    }
+    if (!this._config.show_filter_networks) this._networkFilter = "";
     container.innerHTML = this._availableFilters.map(
       (filter) => `
         <button class="fbn-chip" data-filter="${filter.key}" type="button"
@@ -1592,11 +1621,9 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-compact .fbn-td, .fbn-compact .fbn-th { padding: 4px 8px; }
       .fbn-tr:nth-child(even) { background: var(--fbn-row-alt-bg); }
       .fbn-tr.fbn-new { background: color-mix(in srgb, var(--warning-color, #ffb300) 20%, transparent); }
-      .fbn-tr.fbn-new:hover { background: color-mix(in srgb, var(--warning-color, #ffb300) 28%, transparent); }
       .fbn-tr:last-child .fbn-td { border-bottom: none; }
       .fbn-inactive { opacity: 0.55; }
       .fbn-clickable { cursor: pointer; }
-      .fbn-clickable:hover { background: var(--fbn-header-bg); }
       /* Sticky: Status und Gerätename bleiben beim Blättern links stehen. */
       .fbn-sticky .fbn-col-status {
         position: sticky; left: 0; z-index: 2; box-sizing: border-box;
@@ -1650,9 +1677,8 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-icon-update { color: var(--fbn-update); --mdc-icon-size: 18px; width: 18px; height: 18px; }
       .fbn-empty { padding: 16px; text-align: center; color: var(--fbn-inactive); }
       .fbn-clickable:focus-visible { outline: 2px solid var(--fbn-accent); outline-offset: -2px; }
-      @media (prefers-reduced-motion: no-preference) {
-        .fbn-chip, .fbn-tr { transition: color 120ms ease, background 120ms ease; }
-      }
+      .fbn-th:focus { outline: none; }
+      .fbn-th:focus-visible { outline: 2px solid var(--fbn-accent); outline-offset: -2px; }
     `;
   }
 
@@ -1772,6 +1798,14 @@ const EDITOR_SCHEMA = [
       { name: "show_summary", selector: { boolean: {} } },
       { name: "show_search", selector: { boolean: {} } },
       { name: "show_filter", selector: { boolean: {} } },
+      { name: "show_filter_all", selector: { boolean: {} } },
+      { name: "show_filter_active", selector: { boolean: {} } },
+      { name: "show_filter_inactive", selector: { boolean: {} } },
+      { name: "show_filter_guest", selector: { boolean: {} } },
+      { name: "show_filter_blocked", selector: { boolean: {} } },
+      { name: "show_filter_update", selector: { boolean: {} } },
+      { name: "show_filter_new", selector: { boolean: {} } },
+      { name: "show_filter_networks", selector: { boolean: {} } },
       { name: "hide_inactive", selector: { boolean: {} } },
       { name: "compact", selector: { boolean: {} } },
       { name: "show_details_popup", selector: { boolean: {} } },
@@ -1843,6 +1877,14 @@ const EDITOR_LABELS = {
   show_summary: "Zusammenfassung anzeigen",
   show_search: "Suchfeld anzeigen",
   show_filter: "Filterleiste anzeigen",
+  show_filter_all: "Filter „Alle“ anzeigen",
+  show_filter_active: "Filter „Aktiv“ anzeigen",
+  show_filter_inactive: "Filter „Inaktiv“ anzeigen",
+  show_filter_guest: "Filter „Gast“ anzeigen",
+  show_filter_blocked: "Filter „Gesperrt“ anzeigen",
+  show_filter_update: "Filter „Update“ anzeigen",
+  show_filter_new: "Filter „Neu“ anzeigen",
+  show_filter_networks: "Netzfilter „Heimnetz/Gast“ anzeigen",
   hide_inactive: "Nicht verbundene Geräte ausblenden",
   compact: "Kompakte Zeilen",
   show_details_popup: "Klick öffnet ein Detail-Popup",
@@ -1864,6 +1906,7 @@ const EDITOR_HELPERS = {
   show_ip_type: "Braucht die eingeschaltete IP-Typ-Erfassung in den Einstellungen der Integration.",
   show_ha_name: "Zeigt den Gerätenamen aus Home Assistant, sofern das Gerät dort eine MAC-Adresse hinterlegt hat.",
   show_details_popup: "Zeigt beim Antippen alle Felder eines Geräts, auch die auf schmalen Karten ausgeblendeten wie die MAC-Adresse.",
+  show_filter: "Schaltet die komplette Filterleiste ein oder aus. Die folgenden Schalter bestimmen die einzelnen Filter.",
   open_device_on_click: "Wirkt nur, wenn das Detail-Popup ausgeschaltet ist.",
   show_scroll_arrows: "Passen nicht alle Spalten nebeneinander (z. B. auf dem Smartphone), wird die Tabelle waagerecht scrollbar. Diese Pfeile blättern zusätzlich per Klick; wischen geht auch direkt.",
   sticky_name: "Beim waagerechten Blättern bleiben Statuspunkt und Gerätename links stehen.",
@@ -1907,6 +1950,15 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
         <style>${this._styles()}</style>
         <div class="fbn-editor">
           <div class="fbn-form"></div>
+          <details class="fbn-order-editor">
+            <summary>
+              <ha-icon icon="mdi:swap-vertical"></ha-icon>
+              <span class="fbn-order-title">Spalten verschieben</span>
+              <ha-icon class="fbn-order-chevron" icon="mdi:chevron-down"></ha-icon>
+            </summary>
+            <div class="fbn-order-help">Ziehen oder mit den Pfeilen verschieben. Ausgeblendete Spalten bleiben in der Reihenfolge erhalten.</div>
+            <div class="fbn-order-rows"></div>
+          </details>
           <details class="fbn-color-editor">
             <summary>
               <ha-icon icon="mdi:palette-outline"></ha-icon>
@@ -1943,12 +1995,74 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
         this._renderColors();
       });
 
+      this.querySelector(".fbn-order-rows").addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-move]");
+        if (!button) return;
+        this._moveColumn(button.dataset.key, button.dataset.move === "up" ? -1 : 1);
+      });
+
       this._rendered = true;
     }
 
     if (this._hass) this._form.hass = this._hass;
     this._form.data = this._config;
+    this._renderColumnOrder();
     this._renderColors();
+  }
+
+  _renderColumnOrder() {
+    const container = this.querySelector(".fbn-order-rows");
+    if (!container) return;
+    const columns = orderedColumns(this._config);
+    container.innerHTML = columns.map((column, index) => `
+      <div class="fbn-order-row" draggable="true" data-key="${column.key}">
+        <ha-icon class="fbn-order-drag" icon="mdi:drag-vertical"></ha-icon>
+        <span>${escapeHtml(column.key === "status" ? "Status" : column.label)}</span>
+        <span class="fbn-order-state">${this._config[column.cfg] ? "sichtbar" : "ausgeblendet"}</span>
+        <button type="button" data-key="${column.key}" data-move="up" aria-label="Nach oben" ${index === 0 ? "disabled" : ""}><ha-icon icon="mdi:chevron-up"></ha-icon></button>
+        <button type="button" data-key="${column.key}" data-move="down" aria-label="Nach unten" ${index === columns.length - 1 ? "disabled" : ""}><ha-icon icon="mdi:chevron-down"></ha-icon></button>
+      </div>`).join("");
+    let dragged = "";
+    container.querySelectorAll(".fbn-order-row").forEach((row) => {
+      row.addEventListener("dragstart", () => {
+        dragged = row.dataset.key;
+        row.classList.add("fbn-dragging");
+      });
+      row.addEventListener("dragend", () => {
+        dragged = "";
+        row.classList.remove("fbn-dragging");
+      });
+      row.addEventListener("dragover", (event) => event.preventDefault());
+      row.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const target = row.dataset.key;
+        if (dragged && target && dragged !== target) this._moveColumnBefore(dragged, target);
+      });
+    });
+  }
+
+  _setColumnOrder(keys) {
+    this._config = { ...this._config, column_order: keys };
+    this._fire(this._config);
+    this._renderColumnOrder();
+  }
+
+  _moveColumn(key, delta) {
+    const keys = orderedColumns(this._config).map((column) => column.key);
+    const from = keys.indexOf(key);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= keys.length) return;
+    [keys[from], keys[to]] = [keys[to], keys[from]];
+    this._setColumnOrder(keys);
+  }
+
+  _moveColumnBefore(key, target) {
+    const keys = orderedColumns(this._config).map((column) => column.key);
+    const from = keys.indexOf(key);
+    if (from < 0) return;
+    keys.splice(from, 1);
+    keys.splice(keys.indexOf(target), 0, key);
+    this._setColumnOrder(keys);
   }
 
   _renderColors() {
@@ -2019,20 +2133,39 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
   _styles() {
     return `
       .fbn-editor { display: flex; flex-direction: column; gap: 16px; }
-      .fbn-color-editor {
+      .fbn-order-editor, .fbn-color-editor {
         border: 1px solid var(--divider-color); border-radius: 6px; padding: 0;
       }
-      .fbn-color-editor > summary {
+      .fbn-order-editor > summary, .fbn-color-editor > summary {
         display: flex; align-items: center; gap: 8px; cursor: pointer;
         padding: 12px 16px; font-size: 16px; font-weight: 400;
         list-style: none;
       }
+      .fbn-order-editor > summary::-webkit-details-marker,
       .fbn-color-editor > summary::-webkit-details-marker { display: none; }
-      .fbn-color-editor > summary::marker { content: ""; }
-      .fbn-color-editor > summary ha-icon { --mdc-icon-size: 24px; width: 24px; height: 24px; }
-      .fbn-color-title { flex: 1; }
-      .fbn-color-chevron { transition: transform 180ms ease; }
+      .fbn-order-editor > summary::marker, .fbn-color-editor > summary::marker { content: ""; }
+      .fbn-order-editor > summary ha-icon, .fbn-color-editor > summary ha-icon { --mdc-icon-size: 24px; width: 24px; height: 24px; }
+      .fbn-order-title, .fbn-color-title { flex: 1; }
+      .fbn-order-chevron, .fbn-color-chevron { transition: transform 180ms ease; }
+      .fbn-order-editor[open] > summary .fbn-order-chevron,
       .fbn-color-editor[open] > summary .fbn-color-chevron { transform: rotate(180deg); }
+      .fbn-order-help { padding: 0 16px 8px; font-size: 0.82em; color: var(--secondary-text-color); }
+      .fbn-order-rows { padding: 0 16px 12px; }
+      .fbn-order-row {
+        display: grid; grid-template-columns: 24px minmax(120px, 1fr) auto 34px 34px;
+        align-items: center; gap: 6px; min-height: 38px;
+        border-bottom: 1px solid var(--divider-color); cursor: grab;
+      }
+      .fbn-order-row:last-child { border-bottom: none; }
+      .fbn-order-row.fbn-dragging { opacity: 0.45; }
+      .fbn-order-drag { color: var(--secondary-text-color); }
+      .fbn-order-state { font-size: 0.75em; color: var(--secondary-text-color); }
+      .fbn-order-row button {
+        border: none; background: none; color: var(--primary-text-color); cursor: pointer;
+        width: 34px; height: 34px; padding: 5px; border-radius: 50%;
+      }
+      .fbn-order-row button[disabled] { opacity: 0.25; cursor: default; }
+      .fbn-order-row button ha-icon { --mdc-icon-size: 20px; width: 20px; height: 20px; }
       .fbn-color-body { padding: 0 16px 16px; }
       .fbn-reset {
         display: inline-flex; align-items: center; gap: 6px;
