@@ -6,7 +6,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "fritzsync_network"
 MANUFACTURER: Final = "FRITZ!"
-VERSION: Final = "1.3.0"
+VERSION: Final = "1.4.0"
 
 PLATFORMS: Final = [Platform.SENSOR]
 
@@ -21,10 +21,17 @@ DEFAULT_USE_TLS: Final = False
 CONF_SCAN_INTERVAL: Final = "scan_interval"
 CONF_TRACK_ADDRESS_SOURCE: Final = "track_address_source"
 CONF_ADDRESS_SOURCE_INTERVAL: Final = "address_source_interval"
+CONF_PIHOLE_ENABLED: Final = "pihole_enabled"
+CONF_PIHOLE_HOST: Final = "pihole_host"
+CONF_PIHOLE_PASSWORD: Final = "pihole_password"
+CONF_PIHOLE_DOMAIN: Final = "pihole_domain"
 
 DEFAULT_SCAN_INTERVAL: Final = 60  # Sekunden
 DEFAULT_TRACK_ADDRESS_SOURCE: Final = True
 DEFAULT_ADDRESS_SOURCE_INTERVAL: Final = 15  # Minuten
+DEFAULT_PIHOLE_ENABLED: Final = False
+DEFAULT_PIHOLE_HOST: Final = "192.168.9.252"
+DEFAULT_PIHOLE_DOMAIN: Final = "fritz.box"
 
 MIN_SCAN_INTERVAL: Final = 15
 MAX_SCAN_INTERVAL: Final = 3600

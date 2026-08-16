@@ -373,6 +373,19 @@ Kartencodes im Testaufbau.
 
 ## Versionshistorie
 
+### 1.4.0 – Pi-hole-DNS beim Umbenennen
+
+- Optionale Anbindung an die authentifizierte Pi-hole-v6-API.
+- Nach bestätigtem Umbenennen wird der zugehörige lokale DNS-Eintrag von
+  `alter-name.fritz.box` auf `neuer-name.fritz.box` umgestellt.
+- Die Namensnormalisierung entspricht FRITZSync; Umlaute werden beispielsweise zu
+  `ae`, `oe`, `ue` und `ss`.
+- Es werden nur der exakte alte und neue Gerätename innerhalb der eingestellten Domain
+  bearbeitet. Andere lokale DNS-Einträge bleiben unangetastet.
+- Voreinstellungen für dieses Netz: Pi-hole `192.168.9.252`, Domain `fritz.box`.
+- Neue Geräte besitzen direkt in der Tabellenzeile den eindeutigen Knopf
+  **Neu bestätigen**; dieselbe Aktion steht zusätzlich im Geräte-Popup bereit.
+
 ### 1.3.0 – Netztypen und kombinierbare Filter
 
 - Die Netzspalte unterscheidet jetzt `LAN`, `WLAN`, `Gast LAN` und `Gast WLAN`.

@@ -14,6 +14,7 @@ from fritzconnection.core.exceptions import (
 )
 from fritzconnection.lib.fritzhosts import FritzHosts
 from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import RequestException
 
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
@@ -28,7 +29,13 @@ from .const import (
     ATTR_NAME,
     CARD_FILENAME,
     CARD_URL,
+    CONF_PIHOLE_DOMAIN,
+    CONF_PIHOLE_ENABLED,
+    CONF_PIHOLE_HOST,
+    CONF_PIHOLE_PASSWORD,
     CONF_USE_TLS,
+    DEFAULT_PIHOLE_DOMAIN,
+    DEFAULT_PIHOLE_HOST,
     DEFAULT_USE_TLS,
     DOMAIN,
     PLATFORMS,
@@ -41,6 +48,7 @@ from .const import (
 )
 from .coordinator import FritzSyncNetworkCoordinator
 from .hosts import normalize_mac
+from .pihole import PiholeApiError, PiholeClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -210,6 +218,16 @@ def _async_register_services(hass: HomeAssistant) -> None:
         name = call.data.get(ATTR_NAME, "")
         if not name:
             raise HomeAssistantError("Es wurde kein neuer Name uebergeben")
+        current_host = next(
+            (
+                host
+                for host in (coordinator.data or {}).get("hosts", [])
+                if normalize_mac(host.get("mac")) == mac
+            ),
+            None,
+        )
+        old_name = str((current_host or {}).get("name") or "").strip()
+        current_ip = str((current_host or {}).get("ip") or "").strip()
         try:
             await hass.async_add_executor_job(
                 coordinator.fritz_hosts.set_host_name, mac, name
@@ -218,7 +236,31 @@ def _async_register_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError(
                 f"Umbenennen von {mac} fehlgeschlagen: {err}"
             ) from err
+        options = coordinator.entry.options
+        pihole_error: Exception | None = None
+        if options.get(CONF_PIHOLE_ENABLED, False):
+            password = str(options.get(CONF_PIHOLE_PASSWORD, ""))
+            if not password:
+                raise HomeAssistantError(
+                    "FRITZ!Box wurde umbenannt, aber das Pi-hole-Passwort fehlt"
+                )
+            client = PiholeClient(
+                str(options.get(CONF_PIHOLE_HOST, DEFAULT_PIHOLE_HOST)),
+                password,
+                str(options.get(CONF_PIHOLE_DOMAIN, DEFAULT_PIHOLE_DOMAIN)),
+            )
+            try:
+                await hass.async_add_executor_job(
+                    client.sync_rename, current_ip, old_name, name
+                )
+            except (PiholeApiError, RequestException) as err:
+                pihole_error = err
         await coordinator.async_request_refresh()
+        if pihole_error is not None:
+            raise HomeAssistantError(
+                "FRITZ!Box wurde umbenannt, Pi-hole-Synchronisierung "
+                f"fehlgeschlagen: {pihole_error}"
+            ) from pihole_error
 
     async def _handle_wake_on_lan(call: ServiceCall) -> None:
         coordinator = _first_coordinator()

@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.3.0";
+const FBN_VERSION = "1.4.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -891,7 +891,7 @@ class FritzSyncNetworkCard extends HTMLElement {
 
       case "name": {
         const badges = [];
-        if (host.is_new) badges.push(`<button type="button" class="fbn-badge fbn-badge-new" data-ack-mac="${escapeHtml(host.mac)}" title="Neues Gerät bestätigen">Neu</button>`);
+        if (host.is_new) badges.push(`<button type="button" class="fbn-badge fbn-badge-new" data-ack-mac="${escapeHtml(host.mac)}" title="Neues Gerät als bekannt bestätigen"><ha-icon icon="mdi:check-circle-outline"></ha-icon>Neu bestätigen</button>`);
         if (host.guest) badges.push('<span class="fbn-badge fbn-badge-guest">Gast</span>');
         if (host.vpn) badges.push('<span class="fbn-badge">VPN</span>');
         if (host.priority) badges.push('<span class="fbn-badge">Priorität</span>');
@@ -1112,6 +1112,12 @@ class FritzSyncNetworkCard extends HTMLElement {
     if (commentButton) {
       commentButton.addEventListener("click", () => this._setComment(host, commentButton));
     }
+    const acknowledgeButton = this._popup.querySelector(".fbn-act-acknowledge");
+    if (acknowledgeButton) {
+      acknowledgeButton.addEventListener("click", () =>
+        this._acknowledgeDevice(host.mac, acknowledgeButton)
+      );
+    }
 
     // Schliessen in der Fusszeile.
     const footClose = this._popup.querySelector(".fbn-modal-close2");
@@ -1212,6 +1218,11 @@ class FritzSyncNetworkCard extends HTMLElement {
       );
     }
     if (this._hass) {
+      if (host.is_new) {
+        buttons.push(
+          '<button class="fbn-btn fbn-act-acknowledge" type="button"><ha-icon icon="mdi:check-circle-outline"></ha-icon>Als bekannt bestätigen</button>'
+        );
+      }
       buttons.push(
         '<button class="fbn-btn fbn-act-rename" type="button"><ha-icon icon="mdi:pencil"></ha-icon>Umbenennen</button>'
       );
@@ -1258,7 +1269,7 @@ class FritzSyncNetworkCard extends HTMLElement {
   _renameDevice(host, button) {
     const name = prompt("Neuer Gerätename in der FRITZ!Box:", host.name || "");
     if (!name || name === host.name) return;
-    if (!confirm(`„${host.name}“ wirklich in „${name}“ umbenennen?`)) return;
+    if (!confirm(`„${host.name}“ wirklich in „${name}“ umbenennen?\n\nWenn Pi-hole in den Integrationseinstellungen aktiviert ist, wird auch der lokale DNS-Eintrag aktualisiert.`)) return;
     button.disabled = true;
     this._hass.callService("fritzsync_network", "set_device_name", { mac: host.mac, name })
       .then(() => { button.innerHTML = '<ha-icon icon="mdi:check"></ha-icon>Umbenannt'; })
@@ -1280,7 +1291,16 @@ class FritzSyncNetworkCard extends HTMLElement {
     if (!confirm("Neues Gerät wirklich als bekannt bestätigen?")) return;
     button.disabled = true;
     this._hass.callService("fritzsync_network", "acknowledge_device", { mac })
-      .catch(() => { button.disabled = false; });
+      .then(() => {
+        button.innerHTML = '<ha-icon icon="mdi:check"></ha-icon>Bestätigt';
+        if (button.classList.contains("fbn-act-acknowledge")) {
+          setTimeout(() => this._closePopup(), 500);
+        }
+      })
+      .catch(() => {
+        button.disabled = false;
+        button.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon>Fehlgeschlagen';
+      });
   }
 
   /** Schliesst das Popup und raeumt Listener und Fokus auf. */
@@ -1447,7 +1467,8 @@ class FritzSyncNetworkCard extends HTMLElement {
         font-size: 0.72em; border: 1px solid var(--fbn-border); white-space: nowrap;
       }
       .fbn-badge-guest { color: var(--fbn-guest); border-color: var(--fbn-guest); }
-      .fbn-badge-new { color: #5d4300; background: var(--warning-color, #ffb300); border-color: var(--warning-color, #ffb300); cursor: pointer; font: inherit; }
+      .fbn-badge-new { color: #5d4300; background: var(--warning-color, #ffb300); border-color: var(--warning-color, #ffb300); cursor: pointer; font: inherit; display: inline-flex; align-items: center; gap: 3px; }
+      .fbn-badge-new ha-icon { --mdc-icon-size: 14px; width: 14px; height: 14px; }
       .fbn-badge-static { color: var(--fbn-static); border-color: var(--fbn-static); }
       .fbn-icon-blocked { color: var(--fbn-blocked); --mdc-icon-size: 18px; width: 18px; height: 18px; }
       .fbn-icon-update { color: var(--fbn-update); --mdc-icon-size: 18px; width: 18px; height: 18px; }

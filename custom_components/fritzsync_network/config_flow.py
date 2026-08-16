@@ -23,13 +23,21 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
+from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 
 from .const import (
     CONF_ADDRESS_SOURCE_INTERVAL,
+    CONF_PIHOLE_DOMAIN,
+    CONF_PIHOLE_ENABLED,
+    CONF_PIHOLE_HOST,
+    CONF_PIHOLE_PASSWORD,
     CONF_SCAN_INTERVAL,
     CONF_TRACK_ADDRESS_SOURCE,
     CONF_USE_TLS,
     DEFAULT_ADDRESS_SOURCE_INTERVAL,
+    DEFAULT_PIHOLE_DOMAIN,
+    DEFAULT_PIHOLE_ENABLED,
+    DEFAULT_PIHOLE_HOST,
     DEFAULT_HOST,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TRACK_ADDRESS_SOURCE,
@@ -218,7 +226,22 @@ class FritzSyncNetworkOptionsFlow(OptionsFlowWithReload):
                         CONF_ADDRESS_SOURCE_INTERVAL, DEFAULT_ADDRESS_SOURCE_INTERVAL
                     ),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+                vol.Optional(
+                    CONF_PIHOLE_ENABLED,
+                    default=options.get(CONF_PIHOLE_ENABLED, DEFAULT_PIHOLE_ENABLED),
+                ): bool,
+                vol.Optional(
+                    CONF_PIHOLE_HOST,
+                    default=options.get(CONF_PIHOLE_HOST, DEFAULT_PIHOLE_HOST),
+                ): str,
+                vol.Optional(
+                    CONF_PIHOLE_PASSWORD,
+                    default=options.get(CONF_PIHOLE_PASSWORD, ""),
+                ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+                vol.Optional(
+                    CONF_PIHOLE_DOMAIN,
+                    default=options.get(CONF_PIHOLE_DOMAIN, DEFAULT_PIHOLE_DOMAIN),
+                ): str,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
-

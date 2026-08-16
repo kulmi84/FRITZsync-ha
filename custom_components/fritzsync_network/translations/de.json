@@ -41,11 +41,19 @@
         "data": {
           "scan_interval": "Abfrageintervall (Sekunden)",
           "track_address_source": "IP-Typ erfassen (DHCP oder statisch)",
-          "address_source_interval": "Intervall der IP-Typ-Abfrage (Minuten)"
+          "address_source_interval": "Intervall der IP-Typ-Abfrage (Minuten)",
+          "pihole_enabled": "Pi-hole beim Umbenennen synchronisieren",
+          "pihole_host": "Pi-hole-Adresse",
+          "pihole_password": "Pi-hole-Kennwort",
+          "pihole_domain": "Lokale DNS-Domain"
         },
         "data_description": {
           "track_address_source": "Diese Angabe steht nicht in der Geräteliste und kostet einen zusätzlichen Aufruf pro Gerät. Sie ändert sich selten, deshalb läuft sie in einem eigenen, langsameren Takt.",
-          "address_source_interval": "Wirkt nur, wenn die IP-Typ-Erfassung eingeschaltet ist."
+          "address_source_interval": "Wirkt nur, wenn die IP-Typ-Erfassung eingeschaltet ist.",
+          "pihole_enabled": "Aktualisiert nach bestätigtem Umbenennen ausschließlich den passenden lokalen DNS-Eintrag.",
+          "pihole_host": "Für dein System: 192.168.9.252. http:// wird automatisch ergänzt.",
+          "pihole_password": "Wird lokal im Home-Assistant-Konfigurationseintrag gespeichert und nur zur Anmeldung an der Pi-hole-v6-API verwendet.",
+          "pihole_domain": "Für deine bisherigen FRITZSync-Einträge: fritz.box"
         }
       }
     }
@@ -60,7 +68,7 @@
   "services": {
     "set_device_name": {
       "name": "Gerät umbenennen",
-      "description": "Ändert den Namen eines Netzwerkgeräts in der FRITZ!Box.",
+      "description": "Ändert den Namen eines Netzwerkgeräts in der FRITZ!Box und optional den passenden lokalen Pi-hole-DNS-Eintrag.",
       "fields": {
         "mac": { "name": "MAC-Adresse", "description": "MAC-Adresse des Geräts." },
         "name": { "name": "Neuer Name", "description": "Der neue Gerätename." }
@@ -75,4 +83,3 @@
     }
   }
 }
-

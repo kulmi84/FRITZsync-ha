@@ -41,11 +41,19 @@
         "data": {
           "scan_interval": "Update interval (seconds)",
           "track_address_source": "Track IP type (DHCP or static)",
-          "address_source_interval": "IP type update interval (minutes)"
+          "address_source_interval": "IP type update interval (minutes)",
+          "pihole_enabled": "Synchronize Pi-hole when renaming",
+          "pihole_host": "Pi-hole address",
+          "pihole_password": "Pi-hole password",
+          "pihole_domain": "Local DNS domain"
         },
         "data_description": {
           "track_address_source": "This value is not part of the host list and costs one extra request per device. It rarely changes, so it runs on its own slower schedule.",
-          "address_source_interval": "Only applies when IP type tracking is enabled."
+          "address_source_interval": "Only applies when IP type tracking is enabled.",
+          "pihole_enabled": "After a confirmed rename, updates only the matching local DNS record.",
+          "pihole_host": "http:// is added automatically when omitted.",
+          "pihole_password": "Stored locally in the Home Assistant config entry and used only for Pi-hole v6 API authentication.",
+          "pihole_domain": "DNS suffix used for managed device records."
         }
       }
     }
@@ -60,7 +68,7 @@
   "services": {
     "set_device_name": {
       "name": "Rename device",
-      "description": "Changes the name of a network device on the FRITZ!Box.",
+      "description": "Changes the name of a network device on the FRITZ!Box and optionally updates the matching local Pi-hole DNS record.",
       "fields": {
         "mac": { "name": "MAC address", "description": "MAC address of the device." },
         "name": { "name": "New name", "description": "The new device name." }
@@ -75,4 +83,3 @@
     }
   }
 }
-
