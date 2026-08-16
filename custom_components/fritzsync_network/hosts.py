@@ -322,7 +322,7 @@ def apply_fritzsync_fields(
             host["network"] = str(network)
             host["zone"] = (
                 "Heimnetz" if primary_network is not None and address in primary_network
-                else "Gast/anderes Netz"
+                else "Gast"
             )
         except ValueError:
             host["network"] = ""

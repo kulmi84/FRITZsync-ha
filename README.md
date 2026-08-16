@@ -150,7 +150,7 @@ grafischen Editor einstellen.
 | --- | --- | --- |
 | Status | an | `Active` – farbiger Punkt |
 | FRITZ!Box-Name | an | Name aus der FRITZ!Box, samt Abzeichen für Gast, VPN und Priorität |
-| Netz | an | Kompakt als `LAN` bzw. `Gast (LAN/WLAN)`; Subnetze stehen als Filterchips bereit |
+| Netz | an | Kompakt als `LAN`, `WLAN`, `Gast LAN` oder `Gast WLAN`; Subnetze stehen als Filterchips bereit |
 | IP-Adresse | an | `IPAddress` |
 | MAC-Adresse | an | `MACAddress` |
 | PTR 1 | an | Erste PTR-Antwort des DNS-Servers der FRITZ!Box |
@@ -372,6 +372,14 @@ Kartencodes im Testaufbau.
 ---
 
 ## Versionshistorie
+
+### 1.3.0 – Netztypen und kombinierbare Filter
+
+- Die Netzspalte unterscheidet jetzt `LAN`, `WLAN`, `Gast LAN` und `Gast WLAN`.
+- Fremde bzw. Gast-Subnetze heißen in der Oberfläche kurz `Gast`.
+- Subnetz- und Statusfilter sind kombinierbar: Ein ausgewähltes Netz kann mit `Aktiv`
+  (Standard), `Alle`, `Inaktiv`, `Gesperrt`, `Update` oder `Neu` weiter eingeschränkt werden.
+- Ein ausgewählter Netzfilter lässt sich durch erneuten Klick wieder lösen.
 
 ### 1.1.0 – Blättern statt Spalten verstecken
 

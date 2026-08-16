@@ -52,7 +52,7 @@ class HostTests(unittest.TestCase):
         self.assertEqual(hosts[0]["ptr1"], "nas.fritz.box")
         self.assertEqual(hosts[0]["ptr2"], "nas.local")
         self.assertEqual(hosts[0]["comment"], "Vorratskeller")
-        self.assertEqual(hosts[1]["zone"], "Gast/anderes Netz")
+        self.assertEqual(hosts[1]["zone"], "Gast")
 
 
 if __name__ == "__main__":

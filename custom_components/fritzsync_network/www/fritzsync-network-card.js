@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.2.0";
+const FBN_VERSION = "1.3.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -306,6 +306,9 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._hass = null;
     this._search = "";
     this._filter = "aktiv";
+    // Netz und Status sind getrennte Filter. So kann z. B. innerhalb
+    // des Gastnetzes zwischen "Aktiv" und "Alle" gewechselt werden.
+    this._networkFilter = "";
     this._sortBy = "ip";
     this._sortDir = "asc";
     this._signature = "";
@@ -443,11 +446,11 @@ class FritzSyncNetworkCard extends HTMLElement {
         hosts = hosts.filter((host) => host.is_new);
         break;
       default:
-        if (this._filter.startsWith("network:")) {
-          const network = this._filter.slice("network:".length);
-          hosts = hosts.filter((host) => host.network === network);
-        }
         break;
+    }
+
+    if (this._networkFilter) {
+      hosts = hosts.filter((host) => host.network === this._networkFilter);
     }
 
     if (search) {
@@ -555,14 +558,16 @@ class FritzSyncNetworkCard extends HTMLElement {
       ).entries()
     ).map(([network, zone]) => ({
       key: `network:${network}`,
-      label: `${zone}: ${network}`,
+      label: `${zone === "Gast/anderes Netz" ? "Gast" : zone}: ${network}`,
       icon: zone === "Heimnetz" ? "mdi:lan" : "mdi:account-network",
     }));
     this._availableFilters = [...FILTERS, ...networks];
     container.innerHTML = this._availableFilters.map(
       (filter) => `
         <button class="fbn-chip" data-filter="${filter.key}" type="button"
-                aria-pressed="${filter.key === this._filter}">
+                aria-pressed="${filter.key.startsWith("network:")
+                  ? filter.key.slice("network:".length) === this._networkFilter
+                  : filter.key === this._filter}">
           <ha-icon icon="${filter.icon}"></ha-icon><span>${escapeHtml(filter.label)}</span>
         </button>`
     ).join("");
@@ -641,10 +646,19 @@ class FritzSyncNetworkCard extends HTMLElement {
   /** Setzt den aktiven Filter und aktualisiert Chips, Zusammenfassung, Liste. */
   _setFilter(key) {
     if (!(this._availableFilters || FILTERS).some((filter) => filter.key === key)) return;
-    if (key === this._filter) return;
-    this._filter = key;
+    if (key.startsWith("network:")) {
+      const network = key.slice("network:".length);
+      this._networkFilter = this._networkFilter === network ? "" : network;
+    } else {
+      if (key === this._filter) return;
+      this._filter = key;
+    }
     this.querySelectorAll(".fbn-chip").forEach((chip) => {
-      chip.setAttribute("aria-pressed", String(chip.dataset.filter === key));
+      const chipKey = chip.dataset.filter;
+      const pressed = chipKey.startsWith("network:")
+        ? chipKey.slice("network:".length) === this._networkFilter
+        : chipKey === this._filter;
+      chip.setAttribute("aria-pressed", String(pressed));
     });
     this._renderSummary();
     this._renderBody();
@@ -908,8 +922,13 @@ class FritzSyncNetworkCard extends HTMLElement {
         return `<span class="fbn-mono fbn-dim">${escapeHtml(host.mac || "—")}</span>`;
 
       case "network":
-        return host.guest || host.zone === "Gast/anderes Netz"
-          ? '<span class="fbn-badge fbn-badge-guest">Gast (LAN/WLAN)</span>'
+        if (host.guest || host.zone === "Gast" || host.zone === "Gast/anderes Netz") {
+          return host.connection === "wlan"
+            ? '<span class="fbn-badge fbn-badge-guest">Gast WLAN</span>'
+            : '<span class="fbn-badge fbn-badge-guest">Gast LAN</span>';
+        }
+        return host.connection === "wlan"
+          ? '<span class="fbn-badge">WLAN</span>'
           : '<span class="fbn-badge">LAN</span>';
 
       case "ptr1":
@@ -1641,7 +1660,7 @@ const EDITOR_LABELS = {
 };
 
 const EDITOR_HELPERS = {
-  show_network: "Zeigt Heimnetz bzw. Gast/anderes Netz und das berechnete /24-Subnetz.",
+  show_network: "Unterscheidet LAN/WLAN sowie Gast LAN/Gast WLAN; Subnetze sind separat filterbar.",
   show_ptr1: "Erste PTR-Antwort aus einer direkten DNS-Abfrage an die FRITZ!Box.",
   show_ptr2: "Zweite PTR-Antwort, sofern die FRITZ!Box mehrere Namen meldet.",
   show_comment: "MAC-basierter Kommentar, lokal in Home Assistant gespeichert.",
