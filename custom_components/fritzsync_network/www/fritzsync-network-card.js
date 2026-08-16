@@ -737,9 +737,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       button.disabled = true;
       button.querySelector("ha-icon").setAttribute("icon", "mdi:loading");
       try {
-        await this._hass.callService("homeassistant", "update_entity", {
-          entity_id: this._config.entity,
-        });
+        await this._hass.callService("fritzsync_network", "refresh", {});
       } finally {
         button.disabled = false;
         button.querySelector("ha-icon").setAttribute("icon", "mdi:refresh");
