@@ -76,3 +76,7 @@ pihole_delete_record:
       example: "192.168.9.178 mk-esx20.fritz.box"
       selector:
         text:
+
+pihole_sync_all:
+  name: Alle Geräte mit Pi-hole synchronisieren
+  description: Überträgt alle FRITZ!Box-Geräte mit Name und IP-Adresse an Pi-hole.
