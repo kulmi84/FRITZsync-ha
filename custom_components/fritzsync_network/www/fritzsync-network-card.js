@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.9.4";
+const FBN_VERSION = "1.10.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -357,6 +357,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._popupReturnFocus = null;
     this._onPopupKeydown = null;
     this._piholeEditing = "";
+    this._columnWidths = {};
   }
 
   /* -- Lovelace-Schnittstelle -------------------------------------- */
@@ -366,6 +367,13 @@ class FritzSyncNetworkCard extends HTMLElement {
       throw new Error("Bitte den Sensor mit der Geräteliste auswählen (entity).");
     }
     this._config = withDefaults(config);
+    try {
+      this._columnWidths = JSON.parse(
+        localStorage.getItem(`fritzsync-column-widths:${this._config.entity}`) || "{}"
+      );
+    } catch (_error) {
+      this._columnWidths = {};
+    }
     this._sortBy = this._config.sort_by;
     this._sortDir = this._config.sort_dir === "desc" ? "desc" : "asc";
     this._built = false;
@@ -499,6 +507,26 @@ class FritzSyncNetworkCard extends HTMLElement {
     return orderedColumns(this._config).filter((column) => this._config[column.cfg]);
   }
 
+  _columnStyle(column) {
+    const width = Number(this._columnWidths[column.key]) || 0;
+    const sizing = width > 0
+      ? `;width:${width}px;min-width:${width}px;max-width:${width}px`
+      : "";
+    return `text-align:${column.align || "left"}${sizing}`;
+  }
+
+  _saveColumnWidths() {
+    try {
+      localStorage.setItem(
+        `fritzsync-column-widths:${this._config.entity}`,
+        JSON.stringify(this._columnWidths)
+      );
+    } catch (_error) {
+      // Private Browsermodi koennen localStorage sperren; Ziehen wirkt dann
+      // weiterhin bis zum naechsten Neuladen.
+    }
+  }
+
   _stickyColumnsEnabled() {
     const keys = this._visibleColumns().map((column) => column.key);
     return this._config.sticky_name && keys[0] === "status" && keys[1] === "name";
@@ -611,14 +639,10 @@ class FritzSyncNetworkCard extends HTMLElement {
             <button class="fbn-chip fbn-refresh" type="button" title="Geräteliste jetzt aktualisieren">
               <ha-icon icon="mdi:refresh"></ha-icon><span>Aktualisieren</span>
             </button>
-            <label class="fbn-exportwrap" title="Geräteliste für Excel exportieren">
+            <button class="fbn-chip fbn-export" type="button" title="Aktuelle Ansicht als Excel-Datei exportieren">
               <ha-icon icon="mdi:microsoft-excel"></ha-icon>
-              <select class="fbn-export" aria-label="Excel-Export">
-                <option value="">Excel-Export</option>
-                <option value="filtered">Aktuelle Ansicht</option>
-                <option value="all">Alle Geräte</option>
-              </select>
-            </label>
+              <span>Excel-Export</span>
+            </button>
             <div class="fbn-searchwrap"></div>
           </div>
         </div>
@@ -827,53 +851,53 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   _buildExport() {
-    const select = this.querySelector(".fbn-export");
-    if (!select || select.dataset.bound) return;
-    select.dataset.bound = "1";
-    select.addEventListener("change", () => {
-      const scope = select.value;
-      select.value = "";
-      if (scope) this._exportXlsx(scope);
-    });
+    const button = this.querySelector(".fbn-export");
+    if (!button || button.dataset.bound) return;
+    button.dataset.bound = "1";
+    button.addEventListener("click", () => this._exportXlsx());
   }
 
-  /** Exportiert eine echte XLSX-Arbeitsmappe mit formatierter Excel-Tabelle. */
-  _exportXlsx(scope) {
-    const hosts = scope === "filtered"
-      ? this._filteredHosts()
-      : this._listHosts().slice().sort((a, b) => ipSortKey(a.ip) - ipSortKey(b.ip));
-    const headers = [
-      "Status", "Neu", "FRITZ!Box-Name", "Netz", "Subnetz", "MAC-Adresse",
-      "IP-Adresse", "PTR 1", "PTR 2", "Kommentar", "Verbindung",
-      "Home Assistant", "IP-Typ", "Internetzugang", "Update", "Tempo",
-      "Modell", "Gerätetyp"
-    ];
+  /** Exportiert exakt die sichtbaren Spalten und gefilterten Zeilen als XLSX. */
+  _exportXlsx() {
+    const hosts = this._filteredHosts();
+    const visible = this._visibleColumns();
+    if (!visible.length) {
+      window.alert("Für den Excel-Export ist keine Spalte eingeblendet.");
+      return;
+    }
+    const headers = visible.map((column) =>
+      column.key === "status" ? "Status" : column.label
+    );
     const networkLabel = (host) => {
       if (host._pihole) return "manuell";
       const guest = host.guest || host.zone === "Gast" || host.zone === "Gast/anderes Netz";
       if (guest) return host.connection === "wlan" ? "Gast WLAN" : "Gast LAN";
       return host.connection === "wlan" ? "WLAN" : "LAN";
     };
-    const rows = hosts.map((host) => [
-      host.active ? "aktiv" : "inaktiv",
-      host.is_new ? "ja" : "nein",
-      host.name || "",
-      networkLabel(host),
-      host.network || "",
-      host.mac || "",
-      host.ip || "",
-      host.ptr1 || "",
-      host.ptr2 || "",
-      host.comment || "",
-      host.connection_label || "",
-      host.ha_name || "",
-      host.static_ip === true ? "statisch" : host.static_ip === false ? "DHCP" : "",
-      host.blocked ? "gesperrt" : "erlaubt",
-      host.update_available ? "verfügbar" : "",
-      host.active ? formatSpeed(host.speed) : "",
-      host.model || "",
-      host.device_class_user || host.device_class || "",
-    ]);
+    const cellValue = (host, key) => {
+      switch (key) {
+        case "status": return host._pihole ? "Pi-hole" : host.active ? "aktiv" : "inaktiv";
+        case "name": return host.name || "";
+        case "network": return networkLabel(host);
+        case "mac": return host.mac || "";
+        case "ip": return host.ip || "";
+        case "ptr1": return host.ptr1 || "";
+        case "ptr2": return host.ptr2 || "";
+        case "comment": return host.comment || "";
+        case "connection": return host.connection_label || "";
+        case "ha_name": return host.ha_name || "";
+        case "ip_type": return host.static_ip === true ? "statisch" : host.static_ip === false ? "DHCP" : "";
+        case "wan": return host.blocked ? "gesperrt" : "";
+        case "update": return host.update_available ? "verfügbar" : "";
+        case "speed": return formatSpeed(host.speed);
+        case "model": return host.model || "";
+        case "type": return host.device_class_user || host.device_class || "";
+        default: return "";
+      }
+    };
+    const rows = hosts.map((host) =>
+      visible.map((column) => cellValue(host, column.key))
+    );
 
     // XLSX ist ein ZIP-Container aus XML-Dateien. Die kleine lokale
     // Implementierung vermeidet externe Skripte/CDNs und funktioniert auch,
@@ -907,23 +931,21 @@ class FritzSyncNetworkCard extends HTMLElement {
     const lastColumn = colName(headers.length - 1);
     const lastRow = sheetRows.length;
     const tableRef = `A1:${lastColumn}${lastRow}`;
-    const columns = headers.map((header, index) =>
-      `<tableColumn id="${index + 1}" name="${xmlEscape(header)}"/>`
-    ).join("");
-    const widths = [10, 8, 25, 14, 19, 20, 16, 28, 28, 24, 18, 24, 12, 15, 12, 14, 22, 22];
+    const fallbackWidths = { status: 9, name: 28, network: 14, mac: 20, ip: 16, ptr1: 28, ptr2: 28, comment: 24, connection: 18, ha_name: 24, ip_type: 14, wan: 14, update: 12, speed: 14, model: 22, type: 22 };
+    const widths = visible.map((column) => this._columnWidths[column.key]
+      ? Math.max(6, Math.round(this._columnWidths[column.key] / 7))
+      : (fallbackWidths[column.key] || 16));
     const colWidths = widths.map((width, index) =>
       `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`
     ).join("");
 
     const files = {
-      "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/tables/table1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/></Types>`,
+      "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
       "_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
       "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Netzwerkgeräte" sheetId="1" r:id="rId1"/></sheets></workbook>`,
       "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
-      "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`,
-      "xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colWidths}</cols><sheetData>${sheetXmlRows}</sheetData><autoFilter ref="${tableRef}"/><tableParts count="1"><tablePart r:id="rId1"/></tableParts></worksheet>`,
-      "xl/worksheets/_rels/sheet1.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/></Relationships>`,
-      "xl/tables/table1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="FritzSyncNetzwerk" displayName="FritzSyncNetzwerk" ref="${tableRef}" totalsRowShown="0"><autoFilter ref="${tableRef}"/><tableColumns count="${headers.length}">${columns}</tableColumns><tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/></table>`,
+      "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
+      "xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colWidths}</cols><sheetData>${sheetXmlRows}</sheetData><autoFilter ref="${tableRef}"/></worksheet>`,
     };
 
     const crcTable = new Uint32Array(256);
@@ -999,12 +1021,13 @@ class FritzSyncNetworkCard extends HTMLElement {
         return `
           <th class="fbn-th fbn-col-${column.key} fbn-prio-${column.prio}"
               data-sort="${column.key}" scope="col" tabindex="0" role="columnheader"
-              style="text-align:${column.align || "left"}"
+              style="${this._columnStyle(column)}"
               title="Nach ${escapeHtml(label)} sortieren">
             <span class="fbn-th-inner">
               <span class="fbn-th-label">${escapeHtml(column.label)}</span>
               <ha-icon class="fbn-sorticon" icon="mdi:arrow-up" hidden></ha-icon>
             </span>
+            ${column.key === "status" ? "" : `<span class="fbn-resizer" data-resize="${column.key}" title="Spaltenbreite ziehen; Doppelklick setzt sie zurück"></span>`}
           </th>`;
       })
       .join("");
@@ -1021,6 +1044,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     };
 
     row.addEventListener("click", (event) => {
+      if (event.target.closest(".fbn-resizer")) return;
       const header = event.target.closest("th[data-sort]");
       if (header) sort(header.dataset.sort);
     });
@@ -1030,6 +1054,49 @@ class FritzSyncNetworkCard extends HTMLElement {
       if (!header) return;
       event.preventDefault();
       sort(header.dataset.sort);
+    });
+
+    row.querySelectorAll(".fbn-resizer").forEach((handle) => {
+      handle.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const key = handle.dataset.resize;
+        const header = handle.closest("th");
+        const startX = event.clientX;
+        const startWidth = header.getBoundingClientRect().width;
+        handle.setPointerCapture(event.pointerId);
+        const move = (moveEvent) => {
+          const width = Math.max(54, Math.min(600, Math.round(startWidth + moveEvent.clientX - startX)));
+          this._columnWidths[key] = width;
+          this.querySelectorAll(`.fbn-col-${key}`).forEach((cell) => {
+            cell.style.width = `${width}px`;
+            cell.style.minWidth = `${width}px`;
+            cell.style.maxWidth = `${width}px`;
+          });
+          this._updateArrows();
+        };
+        const stop = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", stop);
+          handle.removeEventListener("pointercancel", stop);
+          this._saveColumnWidths();
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", stop);
+        handle.addEventListener("pointercancel", stop);
+      });
+      handle.addEventListener("dblclick", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        delete this._columnWidths[handle.dataset.resize];
+        this._saveColumnWidths();
+        this.querySelectorAll(`.fbn-col-${handle.dataset.resize}`).forEach((cell) => {
+          cell.style.removeProperty("width");
+          cell.style.removeProperty("min-width");
+          cell.style.removeProperty("max-width");
+        });
+        this._renderBody();
+      });
     });
   }
 
@@ -1148,7 +1215,7 @@ class FritzSyncNetworkCard extends HTMLElement {
   _renderPiholeRow(item, columns, draft = false, editing = draft) {
     const cells = columns.map((column) => {
       const tdClass = `fbn-td fbn-col-${column.key} fbn-prio-${column.prio}`;
-      const style = `text-align:${column.align || "left"}`;
+      const style = this._columnStyle(column);
       if (column.key === "status") return `<td class="${tdClass}" style="${style}" data-pihole-column="status"><span class="fbn-dot fbn-dot-pihole" title="Manueller Pi-hole-DNS-Eintrag"></span></td>`;
       if (column.key === "name") return editing
         ? `<td class="${tdClass} fbn-pihole-namecell" style="${style}" data-pihole-column="name"><div class="fbn-namecell"><ha-icon class="fbn-rowicon fbn-pihole-icon" icon="mdi:pi-hole"></ha-icon><input class="fbn-pihole-names" value="${escapeHtml(item.names || "")}" placeholder="name.fritz.box" aria-label="DNS-Name oder Aliasnamen" spellcheck="false"></div><span class="fbn-pihole-rowbuttons"><button class="fbn-icon-btn fbn-pihole-save" type="button" title="Speichern"><ha-icon icon="mdi:content-save"></ha-icon></button>${draft ? "" : `<button class="fbn-icon-btn fbn-pihole-delete" type="button" title="Löschen"><ha-icon icon="mdi:delete"></ha-icon></button>`}<button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button></span></td>`
@@ -1194,10 +1261,27 @@ class FritzSyncNetworkCard extends HTMLElement {
       const add = event.target.closest(".fbn-pihole-add");
       if (add) {
         const body = this.querySelector(".fbn-body");
+        if (!body) return;
+        const existing = body.querySelector(".fbn-pihole-draft");
+        if (existing) {
+          existing.scrollIntoView({ behavior: "smooth", block: "center" });
+          existing.querySelector(".fbn-pihole-names")?.focus();
+          return;
+        }
         const template = document.createElement("tbody");
         template.innerHTML = this._renderPiholeRow({record: "", names: "", ip: "", managed: false}, this._visibleColumns(), true);
         const row = template.firstElementChild;
-        body.appendChild(row);
+        body.prepend(row);
+        row.addEventListener("keydown", (keyEvent) => {
+          if (keyEvent.key === "Escape") {
+            keyEvent.preventDefault();
+            row.querySelector(".fbn-pihole-cancel")?.click();
+          } else if (keyEvent.key === "Enter" && !keyEvent.shiftKey) {
+            keyEvent.preventDefault();
+            row.querySelector(".fbn-pihole-save")?.click();
+          }
+        });
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
         row.querySelector(".fbn-pihole-names").focus();
         return;
       }
@@ -1225,6 +1309,11 @@ class FritzSyncNetworkCard extends HTMLElement {
       }
       const ip = row.querySelector(".fbn-pihole-ip").value.trim();
       const names = row.querySelector(".fbn-pihole-names").value.trim();
+      if (save && (!ip || !names)) {
+        window.alert("Bitte DNS-Name und IP-Adresse vollständig eintragen.");
+        (names ? row.querySelector(".fbn-pihole-ip") : row.querySelector(".fbn-pihole-names"))?.focus();
+        return;
+      }
       const oldRecord = row.dataset.record || "";
       const question = remove
         ? `Pi-hole-DNS-Eintrag wirklich löschen?\n\n${oldRecord}`
@@ -1306,7 +1395,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         (column) =>
           `<td class="fbn-td fbn-col-${column.key} fbn-prio-${column.prio}" style="text-align:${
             column.align || "left"
-          }">${this._renderCell(host, column.key)}</td>`
+          };${this._columnWidths[column.key] ? `width:${this._columnWidths[column.key]}px;min-width:${this._columnWidths[column.key]}px;max-width:${this._columnWidths[column.key]}px` : ""}">${this._renderCell(host, column.key)}</td>`
       )
       .join("");
     return `<tr class="${classes.join(" ")}"${macAttr}${extra}>${cells}</tr>`;
@@ -1786,13 +1875,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       }
       .fbn-filters { display: flex; flex-wrap: wrap; gap: 6px; }
       .fbn-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
-      .fbn-exportwrap {
-        display: inline-flex; align-items: center; gap: 5px;
-        border: 1px solid var(--fbn-border); border-radius: 16px; padding: 3px 8px;
-      }
-      .fbn-exportwrap ha-icon { --mdc-icon-size: 17px; width: 17px; height: 17px; color: #43a047; }
-      .fbn-export { border: none; background: transparent; color: inherit; font: inherit; font-size: 0.85em; outline: none; cursor: pointer; }
-      .fbn-export option { color: var(--primary-text-color); background: var(--card-background-color); }
+      .fbn-export ha-icon { --mdc-icon-size: 17px; width: 17px; height: 17px; color: #43a047; }
       .fbn-chip {
         display: inline-flex; align-items: center; gap: 4px;
         border: 1px solid var(--fbn-border); border-radius: 16px;
@@ -1843,6 +1926,15 @@ class FritzSyncNetworkCard extends HTMLElement {
         padding: 8px 12px; cursor: pointer; user-select: none;
         border-bottom: 1px solid var(--fbn-border);
       }
+      .fbn-resizer {
+        position: absolute; top: 0; right: -4px; bottom: 0; width: 9px;
+        z-index: 6; cursor: col-resize; touch-action: none;
+      }
+      .fbn-resizer::after {
+        content: ""; position: absolute; top: 20%; bottom: 20%; left: 4px;
+        width: 1px; background: transparent;
+      }
+      .fbn-resizer:hover::after { background: var(--fbn-accent); }
       .fbn-th-inner { display: inline-flex; align-items: center; gap: 4px; }
       .fbn-th.fbn-sorted { color: var(--fbn-accent); }
       .fbn-sorticon { --mdc-icon-size: 14px; width: 14px; height: 14px; }
