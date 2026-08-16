@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.1
+
+- belegte Pi-hole-API-Sitzungen nach jedem Zugriff korrekt abmelden
+- nur manuelle Pi-hole-DNS-Zeilen direkt nach IP in die Geräteliste einsortieren
+- zusätzlichen Filter `Manuell` ergänzen
+- Bearbeitungsmodus bei API-Fehlern geöffnet lassen
+- automatisch synchronisierte Pi-hole-Duplikate nicht mehr separat anzeigen
+
 ## 1.9.0
 
 - alle Pi-hole-Einträge dauerhaft innerhalb der Haupttabelle anzeigen
