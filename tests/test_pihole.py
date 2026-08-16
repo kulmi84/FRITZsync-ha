@@ -11,6 +11,7 @@ from pihole import (
     dns_name,
     fqdn,
     normalize_record,
+    rename_candidates,
     records_from_response,
     split_record,
 )
@@ -53,6 +54,16 @@ class PiholeTests(unittest.TestCase):
                 "ip": "192.168.9.201",
                 "names": "wireguard-s20-dk.fritz.box",
             },
+        )
+
+    def test_rename_finds_existing_record_by_same_ip(self):
+        records = [
+            "192.168.9.12 nuc-alt.fritz.box",
+            "192.168.9.13 anderes.fritz.box",
+        ]
+        self.assertEqual(
+            rename_candidates(records, "192.168.9.12", "nuc.fritz.box", "fritz.box"),
+            ["192.168.9.12 nuc-alt.fritz.box"],
         )
 
 
