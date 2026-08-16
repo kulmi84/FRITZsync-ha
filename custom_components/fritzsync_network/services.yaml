@@ -81,6 +81,10 @@ pihole_sync_all:
   name: Alle Geräte mit Pi-hole synchronisieren
   description: Überträgt alle FRITZ!Box-Geräte mit Name und IP-Adresse an Pi-hole.
 
+refresh:
+  name: Vollständig aktualisieren
+  description: Aktualisiert Geräteliste, IP-Typ und PTR 1/2 sofort.
+
 cleanup_stale_hosts:
   name: Veraltete FRITZ!Box-Geräte löschen
   description: Löscht nach erneuter Prüfung inaktive Dubletten belegter IP-Adressen aus der FRITZ!Box.
