@@ -54,6 +54,22 @@ class HostTests(unittest.TestCase):
         self.assertEqual(hosts[0]["comment"], "Vorratskeller")
         self.assertEqual(hosts[1]["zone"], "Gast")
 
+    def test_marks_inactive_placeholder_duplicates_but_keeps_active_device(self):
+        hosts = build_hosts([
+            {"Index": 1, "HostName": "PC-192-168-9-77", "IPAddress": "192.168.9.77", "MACAddress": "00:00:00:00:00:01"},
+            {"Index": 2, "HostName": "mk-nb22", "IPAddress": "192.168.9.77", "MACAddress": "00:00:00:00:00:02", "Active": True},
+            {"Index": 3, "HostName": "PC-192-168-9-77", "IPAddress": "192.168.9.77", "MACAddress": "00:00:00:00:00:03"},
+        ])
+        self.assertEqual(sum(host["stale_ip_duplicate"] for host in hosts), 2)
+        self.assertFalse(next(host for host in hosts if host["active"])["stale_ip_duplicate"])
+
+    def test_does_not_mark_entries_without_ip(self):
+        hosts = build_hosts([
+            {"HostName": "A", "MACAddress": "00:00:00:00:00:01"},
+            {"HostName": "B", "MACAddress": "00:00:00:00:00:02"},
+        ])
+        self.assertFalse(any(host["stale_ip_duplicate"] for host in hosts))
+
 
 if __name__ == "__main__":
     unittest.main()
