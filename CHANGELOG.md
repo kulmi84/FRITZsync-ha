@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1
+
+- Pi-hole-Adressen ohne Protokoll standardmäßig über HTTPS ansprechen
+- selbstsignierte Zertifikate lokaler Pi-hole-Installationen unterstützen
+- beim Geräte-Umbenennen den lokalen DNS-Eintrag derselben IP überschreiben
+
 ## 1.8.0
 
 - manuelle Local-DNS-Einträge aus Pi-hole 6 in Home Assistant anzeigen
