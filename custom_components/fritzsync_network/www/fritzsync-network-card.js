@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.9.2";
+const FBN_VERSION = "1.9.3";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -553,13 +553,6 @@ class FritzSyncNetworkCard extends HTMLElement {
     this.querySelectorAll(".fbn-pihole-tool").forEach((button) => {
       button.hidden = !piholeEnabled;
     });
-    const cleanup = this.querySelector(".fbn-cleanup");
-    if (cleanup) {
-      const count = this._hosts().filter((host) => host.stale_ip_duplicate).length;
-      cleanup.hidden = count === 0;
-      const label = cleanup.querySelector("span");
-      if (label) label.textContent = `Dubletten bereinigen (${count})`;
-    }
     this._renderSummary();
     this._renderBody();
     if (changed) this._renderHead();
@@ -589,9 +582,6 @@ class FritzSyncNetworkCard extends HTMLElement {
             </button>
             <button class="fbn-chip fbn-refresh" type="button" title="Geräteliste jetzt aktualisieren">
               <ha-icon icon="mdi:refresh"></ha-icon><span>Aktualisieren</span>
-            </button>
-            <button class="fbn-chip fbn-cleanup" type="button" hidden title="Veraltete inaktive IP-Dubletten aus der FRITZ!Box löschen">
-              <ha-icon icon="mdi:delete-sweep"></ha-icon><span>Dubletten bereinigen</span>
             </button>
             <label class="fbn-exportwrap" title="Geräteliste für Excel exportieren">
               <ha-icon icon="mdi:microsoft-excel"></ha-icon>
@@ -631,7 +621,6 @@ class FritzSyncNetworkCard extends HTMLElement {
 
     this._buildFilters();
     this._buildRefresh();
-    this._buildCleanup();
     this._buildExport();
     this._buildSearch();
     this._buildHead();
@@ -701,31 +690,6 @@ class FritzSyncNetworkCard extends HTMLElement {
       } finally {
         button.disabled = false;
         button.querySelector("ha-icon").setAttribute("icon", "mdi:refresh");
-      }
-    });
-  }
-
-  _buildCleanup() {
-    const button = this.querySelector(".fbn-cleanup");
-    if (!button || button.dataset.bound) return;
-    button.dataset.bound = "1";
-    button.addEventListener("click", async () => {
-      const candidates = this._hosts().filter((host) => host.stale_ip_duplicate);
-      if (!candidates.length || button.disabled) return;
-      const preview = candidates.slice(0, 8)
-        .map((host) => `${host.name || "Unbekannt"} · ${host.ip} · ${host.mac}`)
-        .join("\n");
-      const more = candidates.length > 8 ? `\n… und ${candidates.length - 8} weitere` : "";
-      if (!window.confirm(
-        `${candidates.length} veraltete, inaktive FRITZ!Box-Einträge wirklich dauerhaft löschen?\n\n${preview}${more}\n\nDie Kandidaten werden unmittelbar vorher erneut geprüft.`
-      )) return;
-      button.disabled = true;
-      try {
-        await this._hass.callService("fritzsync_network", "cleanup_stale_hosts", {});
-      } catch (error) {
-        window.alert(`Bereinigung fehlgeschlagen: ${error.message || error}`);
-      } finally {
-        button.disabled = false;
       }
     });
   }
@@ -1155,14 +1119,17 @@ class FritzSyncNetworkCard extends HTMLElement {
 
   _renderPiholeRow(item, columns, draft = false, editing = draft) {
     const cells = columns.map((column) => {
+      const tdClass = `fbn-td fbn-col-${column.key} fbn-prio-${column.prio}`;
+      const style = `text-align:${column.align || "left"}`;
+      if (column.key === "status") return `<td class="${tdClass}" style="${style}" data-pihole-column="status"><span class="fbn-dot fbn-dot-pihole" title="Manueller Pi-hole-DNS-Eintrag"></span></td>`;
       if (column.key === "name") return editing
-        ? `<td class="fbn-cell fbn-pihole-namecell" data-pihole-column="name"><input class="fbn-pihole-names" value="${escapeHtml(item.names || "")}" placeholder="name.fritz.box" aria-label="DNS-Name oder Aliasnamen" spellcheck="false"><span class="fbn-pihole-rowbuttons"><button class="fbn-icon-btn fbn-pihole-save" type="button" title="Speichern"><ha-icon icon="mdi:content-save"></ha-icon></button>${draft ? "" : `<button class="fbn-icon-btn fbn-pihole-delete" type="button" title="Löschen"><ha-icon icon="mdi:delete"></ha-icon></button>`}<button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button></span></td>`
-        : `<td class="fbn-cell" data-pihole-column="name">${escapeHtml(item.names || "—")}</td>`;
+        ? `<td class="${tdClass} fbn-pihole-namecell" style="${style}" data-pihole-column="name"><div class="fbn-namecell"><ha-icon class="fbn-rowicon fbn-pihole-icon" icon="mdi:pi-hole"></ha-icon><input class="fbn-pihole-names" value="${escapeHtml(item.names || "")}" placeholder="name.fritz.box" aria-label="DNS-Name oder Aliasnamen" spellcheck="false"></div><span class="fbn-pihole-rowbuttons"><button class="fbn-icon-btn fbn-pihole-save" type="button" title="Speichern"><ha-icon icon="mdi:content-save"></ha-icon></button>${draft ? "" : `<button class="fbn-icon-btn fbn-pihole-delete" type="button" title="Löschen"><ha-icon icon="mdi:delete"></ha-icon></button>`}<button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button></span></td>`
+        : `<td class="${tdClass}" style="${style}" data-pihole-column="name"><div class="fbn-namecell"><ha-icon class="fbn-rowicon fbn-pihole-icon" icon="mdi:pi-hole"></ha-icon><span class="fbn-name">${escapeHtml(item.names || "—")}</span></div></td>`;
       if (column.key === "ip") return editing
-        ? `<td class="fbn-cell" data-pihole-column="ip"><input class="fbn-pihole-ip" value="${escapeHtml(item.ip || "")}" placeholder="192.168.9.x" aria-label="IP-Adresse" inputmode="decimal" spellcheck="false"></td>`
-        : `<td class="fbn-cell fbn-mono" data-pihole-column="ip">${escapeHtml(item.ip || "—")}</td>`;
-      if (column.key === "network") return `<td class="fbn-cell" data-pihole-column="network"><span class="fbn-badge ${item.managed ? "" : "fbn-badge-manual"}">${item.managed ? "Pi-hole" : "manuell"}</span></td>`;
-      return `<td class="fbn-cell fbn-dim" data-pihole-column="${column.key}">—</td>`;
+        ? `<td class="${tdClass}" style="${style}" data-pihole-column="ip"><input class="fbn-pihole-ip" value="${escapeHtml(item.ip || "")}" placeholder="192.168.9.x" aria-label="IP-Adresse" inputmode="decimal" spellcheck="false"></td>`
+        : `<td class="${tdClass} fbn-mono" style="${style}" data-pihole-column="ip">${escapeHtml(item.ip || "—")}</td>`;
+      if (column.key === "network") return `<td class="${tdClass}" style="${style}" data-pihole-column="network"><span class="fbn-badge ${item.managed ? "" : "fbn-badge-manual"}">${item.managed ? "Pi-hole" : "manuell"}</span></td>`;
+      return `<td class="${tdClass} fbn-dim" style="${style}" data-pihole-column="${column.key}">—</td>`;
     }).join("");
     return `<tr class="fbn-pihole-row${draft ? " fbn-pihole-draft" : ""}${editing ? " fbn-pihole-editing" : ""}" data-record="${escapeHtml(item.record || "")}" data-ip="${escapeHtml(item.ip || "")}" data-names="${escapeHtml(item.names || "")}" data-managed="${item.managed ? "1" : "0"}" tabindex="0" title="Zum Bearbeiten anklicken">${cells}</tr>`;
   }
@@ -1175,7 +1142,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     const ipCell = row.querySelector('[data-pihole-column="ip"]');
     if (!nameCell || !ipCell) return;
     nameCell.classList.add("fbn-pihole-namecell");
-    nameCell.innerHTML = `<input class="fbn-pihole-names" value="${escapeHtml(row.dataset.names || "")}" aria-label="DNS-Name oder Aliasnamen" spellcheck="false"><span class="fbn-pihole-rowbuttons"><button class="fbn-icon-btn fbn-pihole-save" type="button" title="Speichern"><ha-icon icon="mdi:content-save"></ha-icon></button><button class="fbn-icon-btn fbn-pihole-delete" type="button" title="Löschen"><ha-icon icon="mdi:delete"></ha-icon></button><button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button></span>`;
+    nameCell.innerHTML = `<div class="fbn-namecell"><ha-icon class="fbn-rowicon fbn-pihole-icon" icon="mdi:pi-hole"></ha-icon><input class="fbn-pihole-names" value="${escapeHtml(row.dataset.names || "")}" aria-label="DNS-Name oder Aliasnamen" spellcheck="false"></div><span class="fbn-pihole-rowbuttons"><button class="fbn-icon-btn fbn-pihole-save" type="button" title="Speichern"><ha-icon icon="mdi:content-save"></ha-icon></button><button class="fbn-icon-btn fbn-pihole-delete" type="button" title="Löschen"><ha-icon icon="mdi:delete"></ha-icon></button><button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button></span>`;
     ipCell.innerHTML = `<input class="fbn-pihole-ip" value="${escapeHtml(row.dataset.ip || "")}" aria-label="IP-Adresse" inputmode="decimal" spellcheck="false">`;
     nameCell.querySelector("input").focus();
   }
@@ -1903,6 +1870,8 @@ class FritzSyncNetworkCard extends HTMLElement {
       }
       .fbn-dot-on { background: var(--fbn-active); }
       .fbn-dot-off { background: var(--fbn-inactive); }
+      .fbn-dot-pihole { background: var(--fbn-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--fbn-accent) 20%, transparent); }
+      .fbn-pihole-icon { color: var(--fbn-accent); }
       .fbn-badge {
         display: inline-block; border-radius: 4px; padding: 1px 6px;
         font-size: 0.72em; border: 1px solid var(--fbn-border); white-space: nowrap;
