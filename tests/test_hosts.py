@@ -70,6 +70,32 @@ class HostTests(unittest.TestCase):
         ])
         self.assertFalse(any(host["stale_ip_duplicate"] for host in hosts))
 
+    def test_filters_inactive_pc_mac_placeholder_without_ip(self):
+        hosts = build_hosts([
+            {
+                "HostName": "PC-2C-71-FF-09-5A-27",
+                "MACAddress": "2C:71:FF:09:5A:27",
+                "Active": False,
+            },
+            {
+                "HostName": "Drucker",
+                "MACAddress": "00:11:22:33:44:55",
+                "Active": False,
+            },
+        ])
+        self.assertEqual([host["name"] for host in hosts], ["Drucker"])
+
+    def test_keeps_active_pc_mac_name(self):
+        hosts = build_hosts([
+            {
+                "HostName": "PC-2C-71-FF-09-5A-27",
+                "IPAddress": "192.168.9.20",
+                "MACAddress": "2C:71:FF:09:5A:27",
+                "Active": True,
+            }
+        ])
+        self.assertEqual(len(hosts), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
