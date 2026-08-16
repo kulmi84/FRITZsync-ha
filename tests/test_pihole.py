@@ -6,7 +6,14 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "custom_components" / "fritzsync_network"))
 
-from pihole import dns_name, fqdn, records_from_response
+from pihole import (
+    PiholeApiError,
+    dns_name,
+    fqdn,
+    normalize_record,
+    records_from_response,
+    split_record,
+)
 
 
 class PiholeTests(unittest.TestCase):
@@ -21,6 +28,31 @@ class PiholeTests(unittest.TestCase):
         payload = {"config": {"dns": {"hosts": ["192.168.9.3   ac-keller.fritz.box"]}}}
         self.assertEqual(
             records_from_response(payload), ["192.168.9.3 ac-keller.fritz.box"]
+        )
+
+    def test_normalize_manual_record_with_aliases(self):
+        self.assertEqual(
+            normalize_record(
+                "192.168.9.108",
+                "Samsung-SM600-Tablet.Fritz.Box tablet.fritz.box",
+            ),
+            "192.168.9.108 samsung-sm600-tablet.fritz.box tablet.fritz.box",
+        )
+
+    def test_rejects_invalid_manual_record(self):
+        with self.assertRaises(PiholeApiError):
+            normalize_record("192.168.9.999", "host.fritz.box")
+        with self.assertRaises(PiholeApiError):
+            normalize_record("192.168.9.10", "ungültig!.fritz.box")
+
+    def test_split_manual_record(self):
+        self.assertEqual(
+            split_record("192.168.9.201 wireguard-s20-dk.fritz.box"),
+            {
+                "record": "192.168.9.201 wireguard-s20-dk.fritz.box",
+                "ip": "192.168.9.201",
+                "names": "wireguard-s20-dk.fritz.box",
+            },
         )
 
 
