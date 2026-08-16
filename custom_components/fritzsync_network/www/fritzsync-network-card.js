@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.14";
+const FBN_VERSION = "1.10.15";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -2432,7 +2432,7 @@ const EDITOR_LABELS = {
 
 const EDITOR_HELPERS = {
   show_network: "Unterscheidet LAN/WLAN sowie Gast LAN/Gast WLAN; Subnetze sind separat filterbar.",
-  show_ptr1: "Erste PTR-Antwort aus einer direkten DNS-Abfrage an die FRITZ!Box.",
+  show_ptr1: "Erste PTR-Antwort der FRITZ!Box; kann den schreibgeschützten Namen der Erstverbindung enthalten.",
   show_ptr2: "Zweite PTR-Antwort, sofern die FRITZ!Box mehrere Namen meldet.",
   show_comment: "MAC-basierter Kommentar, lokal in Home Assistant gespeichert.",
   show_ip_type: "Braucht die eingeschaltete IP-Typ-Erfassung in den Einstellungen der Integration.",
