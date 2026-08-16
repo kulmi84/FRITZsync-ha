@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.9";
+const FBN_VERSION = "1.10.10";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -378,6 +378,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._piholeEditing = "";
     this._piholeDraft = false;
     this._piholeEdits = {};
+    this._busyCount = 0;
     this._columnWidths = {};
   }
 
@@ -555,6 +556,14 @@ class FritzSyncNetworkCard extends HTMLElement {
     } catch (_error) {
       // Private Browsermodi koennen localStorage sperren; Ziehen wirkt dann
       // weiterhin bis zum naechsten Neuladen.
+    }
+  }
+
+  _setBusy(busy) {
+    this._busyCount = Math.max(0, this._busyCount + (busy ? 1 : -1));
+    if (this._root) {
+      this._root.classList.toggle("fbn-busy", this._busyCount > 0);
+      this._root.setAttribute("aria-busy", this._busyCount > 0 ? "true" : "false");
     }
   }
 
@@ -1364,11 +1373,15 @@ class FritzSyncNetworkCard extends HTMLElement {
       if (sync) {
         if (!window.confirm("Alle FRITZ!Box-Geräte mit IP-Adresse jetzt an Pi-hole übertragen?\n\nVorhandene lokale DNS-Zuordnungen derselben Geräte werden aktualisiert.")) return;
         sync.disabled = true;
+        this._setBusy(true);
         try {
           await this._hass.callService("fritzsync_network", "pihole_sync_all", {});
         } catch (error) {
           window.alert(`Pi-hole-Gesamtabgleich fehlgeschlagen: ${error && error.message ? error.message : error}`);
-        } finally { sync.disabled = false; }
+        } finally {
+          sync.disabled = false;
+          this._setBusy(false);
+        }
         return;
       }
       const add = event.target.closest(".fbn-pihole-add");
@@ -1440,6 +1453,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       if (!window.confirm(question)) return;
       const button = remove || save;
       button.disabled = true;
+      this._setBusy(true);
       try {
         if (remove) {
           await this._hass.callService("fritzsync_network", "pihole_delete_record", {
@@ -1468,6 +1482,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         window.alert(`Pi-hole-Änderung fehlgeschlagen: ${error && error.message ? error.message : error}`);
       } finally {
         button.disabled = false;
+        this._setBusy(false);
       }
     });
   }
@@ -2012,6 +2027,9 @@ class FritzSyncNetworkCard extends HTMLElement {
         border-color: var(--fbn-accent); color: var(--fbn-accent);
       }
       .fbn-chip:focus-visible { outline: 2px solid var(--fbn-accent); outline-offset: 2px; }
+      .fbn-busy, .fbn-busy * { cursor: progress !important; }
+      .fbn-busy button:disabled ha-icon { animation: fbn-spin 850ms linear infinite; }
+      @keyframes fbn-spin { to { transform: rotate(360deg); } }
       .fbn-search {
         display: inline-flex; align-items: center; gap: 6px;
         border: 1px solid var(--fbn-border); border-radius: 16px; padding: 3px 10px;
