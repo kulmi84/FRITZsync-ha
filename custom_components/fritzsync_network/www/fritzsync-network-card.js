@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.7";
+const FBN_VERSION = "1.10.8";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -220,6 +220,19 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/**
+ * Liefert auch innerhalb der verschachtelten Home-Assistant-Shadow-Roots
+ * das wirklich fokussierte Element. document.activeElement endet dort
+ * sonst bereits am aeusseren Host und erkennt unsere Eingabefelder nicht.
+ */
+function deepActiveElement() {
+  let active = document.activeElement;
+  while (active && active.shadowRoot && active.shadowRoot.activeElement) {
+    active = active.shadowRoot.activeElement;
+  }
+  return active;
 }
 
 /** Sortierschluessel, der IPv4-Adressen numerisch ordnet. */
@@ -1207,7 +1220,8 @@ class FritzSyncNetworkCard extends HTMLElement {
       return;
     }
 
-    if (body.contains(document.activeElement)) return;
+    const activeElement = deepActiveElement();
+    if (activeElement && body.contains(activeElement)) return;
     const hosts = this._filteredHosts();
     if (empty) {
       empty.hidden = hosts.length > 0;
