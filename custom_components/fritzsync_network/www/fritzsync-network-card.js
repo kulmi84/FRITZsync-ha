@@ -553,13 +553,6 @@ class FritzSyncNetworkCard extends HTMLElement {
     this.querySelectorAll(".fbn-pihole-tool").forEach((button) => {
       button.hidden = !piholeEnabled;
     });
-    const cleanup = this.querySelector(".fbn-cleanup");
-    if (cleanup) {
-      const count = this._hosts().filter((host) => host.stale_ip_duplicate).length;
-      cleanup.hidden = count === 0;
-      const label = cleanup.querySelector("span");
-      if (label) label.textContent = `Dubletten bereinigen (${count})`;
-    }
     this._renderSummary();
     this._renderBody();
     if (changed) this._renderHead();
@@ -589,9 +582,6 @@ class FritzSyncNetworkCard extends HTMLElement {
             </button>
             <button class="fbn-chip fbn-refresh" type="button" title="Geräteliste jetzt aktualisieren">
               <ha-icon icon="mdi:refresh"></ha-icon><span>Aktualisieren</span>
-            </button>
-            <button class="fbn-chip fbn-cleanup" type="button" hidden title="Veraltete inaktive IP-Dubletten aus der FRITZ!Box löschen">
-              <ha-icon icon="mdi:delete-sweep"></ha-icon><span>Dubletten bereinigen</span>
             </button>
             <label class="fbn-exportwrap" title="Geräteliste für Excel exportieren">
               <ha-icon icon="mdi:microsoft-excel"></ha-icon>
@@ -631,7 +621,6 @@ class FritzSyncNetworkCard extends HTMLElement {
 
     this._buildFilters();
     this._buildRefresh();
-    this._buildCleanup();
     this._buildExport();
     this._buildSearch();
     this._buildHead();
@@ -701,31 +690,6 @@ class FritzSyncNetworkCard extends HTMLElement {
       } finally {
         button.disabled = false;
         button.querySelector("ha-icon").setAttribute("icon", "mdi:refresh");
-      }
-    });
-  }
-
-  _buildCleanup() {
-    const button = this.querySelector(".fbn-cleanup");
-    if (!button || button.dataset.bound) return;
-    button.dataset.bound = "1";
-    button.addEventListener("click", async () => {
-      const candidates = this._hosts().filter((host) => host.stale_ip_duplicate);
-      if (!candidates.length || button.disabled) return;
-      const preview = candidates.slice(0, 8)
-        .map((host) => `${host.name || "Unbekannt"} · ${host.ip} · ${host.mac}`)
-        .join("\n");
-      const more = candidates.length > 8 ? `\n… und ${candidates.length - 8} weitere` : "";
-      if (!window.confirm(
-        `${candidates.length} veraltete, inaktive FRITZ!Box-Einträge wirklich dauerhaft löschen?\n\n${preview}${more}\n\nDie Kandidaten werden unmittelbar vorher erneut geprüft.`
-      )) return;
-      button.disabled = true;
-      try {
-        await this._hass.callService("fritzsync_network", "cleanup_stale_hosts", {});
-      } catch (error) {
-        window.alert(`Bereinigung fehlgeschlagen: ${error.message || error}`);
-      } finally {
-        button.disabled = false;
       }
     });
   }
