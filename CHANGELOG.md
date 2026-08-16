@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.12
+
+- PTR 1 und PTR 2 weiterhin ausschließlich direkt beim DNS-Server der FRITZ!Box abfragen
+- nach einer Umbenennung und über `Aktualisieren` den PTR-Abruf sofort und ohne Coordinator-Debouncer ausführen
+- sicherstellen, dass die Oberfläche erst nach der vollständig abgeschlossenen FRITZ!Box-DNS-Abfrage aktualisiert wird
+
 ## 1.10.11
 
 - Fußleisten-Schaltfläche `Schließen` bereits beim Drücken ausführen, bevor ein Sensorupdate sie ersetzen kann

@@ -41,7 +41,13 @@ from .const import (
     DEFAULT_USE_TLS,
 )
 from .fritzbox_web import FritzBoxWebClient, fixed_ipv4_assignment
-from .hosts import apply_fritzsync_fields, build_hosts, mac_key, resolve_ptr_map, summarize
+from .hosts import (
+    apply_fritzsync_fields,
+    build_hosts,
+    mac_key,
+    resolve_ptr_map,
+    summarize,
+)
 from .pihole import PiholeApiError, PiholeClient, fqdn, split_record
 
 _LOGGER = logging.getLogger(__name__)
@@ -130,7 +136,11 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Aktualisiert auch die langsam getakteten IP-Typ- und PTR-Felder."""
         self._address_source_scan = None
         self._ptr_scan = None
-        await self.async_request_refresh()
+        # ``async_request_refresh`` laeuft durch den Coordinator-Debouncer und
+        # kann mit einem bereits geplanten Abruf zusammenfallen. Nach einer
+        # Umbenennung bzw. einem manuellen Aktualisieren muessen PTR 1/2 jedoch
+        # sicher aus einer neuen FRITZ!Box-DNS-Abfrage stammen.
+        await self.async_refresh()
 
     def _fetch_address_sources(self, macs: list[str]) -> None:
         """Holt DHCP/statisch je Geraet (ein SOAP-Aufruf pro MAC-Adresse)."""

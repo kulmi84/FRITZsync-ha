@@ -6,7 +6,13 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "custom_components" / "fritzsync_network"))
 
-from hosts import apply_fritzsync_fields, build_hosts, normalize_host, normalize_mac, summarize
+from hosts import (
+    apply_fritzsync_fields,
+    build_hosts,
+    normalize_host,
+    normalize_mac,
+    summarize,
+)
 
 
 class HostTests(unittest.TestCase):
