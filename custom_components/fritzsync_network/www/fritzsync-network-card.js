@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.6";
+const FBN_VERSION = "1.10.7";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -364,6 +364,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._onPopupKeydown = null;
     this._piholeEditing = "";
     this._piholeDraft = false;
+    this._piholeEdits = {};
     this._columnWidths = {};
   }
 
@@ -1221,6 +1222,19 @@ class FritzSyncNetworkCard extends HTMLElement {
       : "";
     body.innerHTML = draft + hosts.map((host) => this._renderRow(host, columns)).join("");
 
+    if (this._piholeDraft || this._piholeEditing) {
+      requestAnimationFrame(() => {
+        const selector = this._piholeDraft
+          ? ".fbn-pihole-draft .fbn-pihole-names"
+          : ".fbn-pihole-editing .fbn-pihole-names";
+        const input = body.querySelector(selector);
+        if (!input || !input.isConnected) return;
+        input.focus();
+        const end = input.value.length;
+        input.setSelectionRange?.(end, end);
+      });
+    }
+
     if (!body.dataset.bound) {
       body.dataset.bound = "1";
       body.addEventListener("click", (event) => {
@@ -1260,6 +1274,10 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   _renderPiholeRow(item, columns, draft = false, editing = draft) {
+    const editKey = draft ? "__draft__" : item.record;
+    if (editing && this._piholeEdits[editKey]) {
+      item = { ...item, ...this._piholeEdits[editKey] };
+    }
     const cells = columns.map((column) => {
       const tdClass = `fbn-td fbn-col-${column.key} fbn-prio-${column.prio}`;
       const style = this._columnStyle(column);
@@ -1273,13 +1291,18 @@ class FritzSyncNetworkCard extends HTMLElement {
       if (column.key === "network") return `<td class="${tdClass}" style="${style}" data-pihole-column="network"><span class="fbn-badge ${item.managed ? "" : "fbn-badge-manual"}">${item.managed ? "Pi-hole" : "manuell"}</span></td>`;
       return `<td class="${tdClass} fbn-dim" style="${style}" data-pihole-column="${column.key}">—</td>`;
     }).join("");
-    return `<tr class="fbn-pihole-row${draft ? " fbn-pihole-draft" : ""}${editing ? " fbn-pihole-editing" : ""}" data-record="${escapeHtml(item.record || "")}" data-ip="${escapeHtml(item.ip || "")}" data-names="${escapeHtml(item.names || "")}" data-managed="${item.managed ? "1" : "0"}" tabindex="0" title="Zum Bearbeiten anklicken">${cells}</tr>`;
+    return `<tr class="fbn-pihole-row${draft ? " fbn-pihole-draft" : ""}${editing ? " fbn-pihole-editing" : ""}" data-record="${escapeHtml(item.record || "")}" data-ip="${escapeHtml(item.ip || "")}" data-names="${escapeHtml(item.names || "")}" data-managed="${item.managed ? "1" : "0"}"${editing ? "" : ' tabindex="0"'} title="Zum Bearbeiten anklicken">${cells}</tr>`;
   }
 
   _editPiholeRow(row) {
     if (!row || row.classList.contains("fbn-pihole-editing")) return;
     this._piholeEditing = row.dataset.record || "";
+    this._piholeEdits[this._piholeEditing] = {
+      names: row.dataset.names || "",
+      ip: row.dataset.ip || "",
+    };
     row.classList.add("fbn-pihole-editing");
+    row.removeAttribute("tabindex");
     const nameCell = row.querySelector('[data-pihole-column="name"]');
     const ipCell = row.querySelector('[data-pihole-column="ip"]');
     if (!nameCell || !ipCell) return;
@@ -1296,6 +1319,17 @@ class FritzSyncNetworkCard extends HTMLElement {
     const root = this.querySelector(".fbn-root");
     if (!root || root.dataset.piholeBound) return;
     root.dataset.piholeBound = "1";
+    root.addEventListener("input", (event) => {
+      if (!event.target.matches(".fbn-pihole-names, .fbn-pihole-ip")) return;
+      const row = event.target.closest(".fbn-pihole-row");
+      if (!row) return;
+      const key = row.classList.contains("fbn-pihole-draft")
+        ? "__draft__" : row.dataset.record;
+      this._piholeEdits[key] = {
+        names: row.querySelector(".fbn-pihole-names")?.value || "",
+        ip: row.querySelector(".fbn-pihole-ip")?.value || "",
+      };
+    });
     root.addEventListener("keydown", (event) => {
       if (!event.target.matches(".fbn-pihole-names, .fbn-pihole-ip")) return;
       // Home Assistant verwendet Buchstaben als globale Tastenkürzel. Solange
@@ -1339,6 +1373,7 @@ class FritzSyncNetworkCard extends HTMLElement {
           return;
         }
         this._piholeDraft = true;
+        this._piholeEdits.__draft__ = { names: "", ip: "" };
         this._renderBody();
         const row = body.querySelector(".fbn-pihole-draft");
         if (!row) return;
@@ -1352,6 +1387,9 @@ class FritzSyncNetworkCard extends HTMLElement {
       const row = event.target.closest(".fbn-pihole-row");
       if (!row) return;
       if (event.target.closest(".fbn-pihole-cancel")) {
+        const editKey = row.classList.contains("fbn-pihole-draft")
+          ? "__draft__" : row.dataset.record;
+        delete this._piholeEdits[editKey];
         this._piholeEditing = "";
         if (row.classList.contains("fbn-pihole-draft")) {
           this._piholeDraft = false;
@@ -1404,6 +1442,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         }
         this._piholeEditing = "";
         this._piholeDraft = false;
+        delete this._piholeEdits[oldRecord || "__draft__"];
         button.blur();
         this._renderBody();
       } catch (error) {
