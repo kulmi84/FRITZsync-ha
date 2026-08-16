@@ -302,6 +302,21 @@ def resolve_ptr_map(ips: list[str], dns_server: str) -> dict[str, list[str]]:
     return result
 
 
+def merge_ptr_maps(*maps: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Merge resolver answers in priority order without case duplicates."""
+    merged: dict[str, list[str]] = {}
+    for records_by_ip in maps:
+        for ip, records in records_by_ip.items():
+            target = merged.setdefault(ip, [])
+            known = {item.casefold() for item in target}
+            for record in records:
+                value = str(record or "").strip().rstrip(".")
+                if value and value.casefold() not in known:
+                    target.append(value)
+                    known.add(value.casefold())
+    return merged
+
+
 def apply_fritzsync_fields(
     hosts: list[dict[str, Any]],
     ptr_records: dict[str, list[str]] | None,
