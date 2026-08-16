@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.10.2
+
+- XLSX-Paket mit gültigem ZIP-Datum und vollständiger Arbeitsblatt-Dimension erzeugen
+- nicht benötigten Excel-Autofilter entfernen, da bereits exakt die aktuelle Kartenansicht exportiert wird
+- beim Export nur die in der gerenderten Kartenansicht tatsächlich sichtbaren Felder übernehmen
+- Spaltenbreiten mit größeren sichtbaren Ziehgriffen und globalen Pointer-Events zuverlässig ändern
+- manuelle Spaltenbreiten weiterhin pro Karte im Browser speichern
+- den Entwurf eines neuen Pi-hole-DNS-Eintrags auch bei Sensoraktualisierungen geöffnet halten
+- vor der DNS-Neuanlage verständlich auf notwendige Namens- und IP-Spalten hinweisen
+- bei Router-Datensätzen die private LAN-Adresse gegenüber einer verschachtelten öffentlichen WAN-Adresse bevorzugen
+- dadurch irrtümliche Netzfilter wie `Gast: 185.22.44.0/24` verhindern
+
 ## 1.10.1
 
 - wie in FRITZSync 7.9.3/7.9.4 die WebUI-`netDev`-Liste als Masterquelle für MAC, IPv4 und sichtbaren Namen verwenden
