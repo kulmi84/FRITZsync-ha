@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 from fritzconnection.core.exceptions import (
     FritzAuthorizationError,
@@ -41,7 +42,14 @@ from .const import (
     DEFAULT_USE_TLS,
 )
 from .fritzbox_web import FritzBoxWebClient, fixed_ipv4_assignment
-from .hosts import apply_fritzsync_fields, build_hosts, mac_key, resolve_ptr_map, summarize
+from .hosts import (
+    apply_fritzsync_fields,
+    build_hosts,
+    mac_key,
+    merge_ptr_maps,
+    resolve_ptr_map,
+    summarize,
+)
 from .pihole import PiholeApiError, PiholeClient, fqdn, split_record
 
 _LOGGER = logging.getLogger(__name__)
@@ -218,7 +226,21 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             dns_server = str(self.entry.data[CONF_HOST]).strip()
             dns_server = dns_server.removeprefix("http://").removeprefix("https://")
             dns_server = dns_server.split("/", 1)[0].split(":", 1)[0]
-            self._ptr_records = resolve_ptr_map(ips, dns_server)
+            fritz_ptr = resolve_ptr_map(ips, dns_server)
+            pihole_ptr: dict[str, list[str]] = {}
+            if self.entry.options.get(CONF_PIHOLE_ENABLED, False):
+                address = str(
+                    self.entry.options.get(CONF_PIHOLE_HOST, DEFAULT_PIHOLE_HOST)
+                ).strip()
+                parsed = urlparse(
+                    address if "://" in address else f"https://{address}"
+                )
+                pihole_dns = parsed.hostname or ""
+                if pihole_dns and pihole_dns != dns_server:
+                    pihole_ptr = resolve_ptr_map(ips, pihole_dns)
+            # Der synchronisierte Pi-hole-Name ist aktueller als ein eventuell
+            # noch gecachter FRITZ!Box-PTR. Die Box bleibt vollwertiger Fallback.
+            self._ptr_records = merge_ptr_maps(pihole_ptr, fritz_ptr)
             ptr_refreshed = True
         if self.entry.options.get(CONF_PIHOLE_ENABLED, False):
             try:
