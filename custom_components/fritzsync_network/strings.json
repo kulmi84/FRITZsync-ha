@@ -55,7 +55,7 @@
           "track_address_source": "Diese Angabe steht nicht in der Geräteliste und kostet einen zusätzlichen Aufruf pro Gerät. Sie ändert sich selten, deshalb läuft sie in einem eigenen, langsameren Takt.",
           "address_source_interval": "Wirkt nur, wenn die IP-Typ-Erfassung eingeschaltet ist.",
           "pihole_enabled": "Aktualisiert nach bestätigtem Umbenennen ausschließlich den passenden lokalen DNS-Eintrag.",
-          "pihole_host": "Für dein System: 192.168.9.252. http:// wird automatisch ergänzt.",
+          "pihole_host": "Für dein System: https://192.168.9.252. Ohne Protokoll wird HTTPS verwendet; HTTP ist mit explizitem http:// möglich.",
           "pihole_password": "Wird lokal im Home-Assistant-Konfigurationseintrag gespeichert und nur zur Anmeldung an der Pi-hole-v6-API verwendet.",
           "pihole_domain": "Für deine bisherigen FRITZSync-Einträge: fritz.box"
         }
