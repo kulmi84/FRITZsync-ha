@@ -1,0 +1,20 @@
+rename_device:
+  name: Gerät umbenennen
+  description: Ändert den Gerätenamen direkt in der FRITZ!Box.
+  fields:
+    entry_id: {required: true, selector: {text: {}}}
+    mac: {required: true, selector: {text: {}}}
+    name: {required: true, selector: {text: {}}}
+set_internet_blocked:
+  name: Internetzugang ändern
+  description: Sperrt oder erlaubt den WAN-Zugang eines Geräts.
+  fields:
+    entry_id: {required: true, selector: {text: {}}}
+    ip: {required: true, selector: {text: {}}}
+    blocked: {required: true, selector: {boolean: {}}}
+wake_device:
+  name: Gerät aufwecken
+  description: Sendet ein Wake-on-LAN Magic Packet.
+  fields:
+    entry_id: {required: true, selector: {text: {}}}
+    mac: {required: true, selector: {text: {}}}

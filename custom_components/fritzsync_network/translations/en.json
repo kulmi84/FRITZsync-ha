@@ -1,0 +1,9 @@
+{
+  "title": "FritzSync Network",
+  "config": {
+    "step": {"user": {"title": "Connect to FRITZ!Box", "data": {"host": "Address", "username": "Username", "password": "Password", "use_tls": "Use HTTPS"}}},
+    "error": {"cannot_connect": "Could not connect to FRITZ!Box", "invalid_auth": "Invalid username or password"},
+    "abort": {"already_configured": "This FRITZ!Box is already configured"}
+  },
+  "options": {"step": {"init": {"title": "Configure FritzSync Network", "data": {"scan_interval": "Polling interval in seconds"}}}}
+}

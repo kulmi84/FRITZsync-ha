@@ -1,0 +1,12 @@
+{
+  "domain": "fritzsync_network",
+  "name": "FritzSync Network",
+  "version": "0.1.0",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": ["http", "lovelace"],
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "loggers": ["fritzconnection"],
+  "requirements": ["fritzconnection==1.15.1"]
+}
