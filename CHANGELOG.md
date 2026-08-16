@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.13
+
+- beim Umbenennen zusätzlich den FRITZ!Box-Host-/DNS-Namen über `X_AVM-DE_SetHostNameByMACAddress` schreiben
+- den Schreibvorgang wie FRITZSync mit einer frischen Verbindung wiederholen und über SpecificHostEntry sowie Hostliste verifizieren
+- erst danach den sichtbaren WebUI-Gerätenamen und optional den Pi-hole-DNS-Eintrag aktualisieren
+- dadurch die von der FRITZ!Box gelieferten Werte `PTR 1` und `PTR 2` tatsächlich ändern statt nur neu einzulesen
+
 ## 1.10.12
 
 - PTR 1 und PTR 2 weiterhin ausschließlich direkt beim DNS-Server der FRITZ!Box abfragen
