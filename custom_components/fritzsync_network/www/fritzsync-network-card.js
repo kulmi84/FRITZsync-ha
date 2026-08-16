@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.5";
+const FBN_VERSION = "1.10.6";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -1286,13 +1286,31 @@ class FritzSyncNetworkCard extends HTMLElement {
     nameCell.classList.add("fbn-pihole-namecell");
     nameCell.innerHTML = `<div class="fbn-namecell"><ha-icon class="fbn-rowicon fbn-pihole-icon" icon="mdi:pi-hole"></ha-icon><input class="fbn-pihole-names" value="${escapeHtml(row.dataset.names || "")}" aria-label="DNS-Name oder Aliasnamen" spellcheck="false"></div><span class="fbn-pihole-rowbuttons"><button class="fbn-icon-btn fbn-pihole-save" type="button" title="Speichern"><ha-icon icon="mdi:content-save"></ha-icon></button><button class="fbn-icon-btn fbn-pihole-delete" type="button" title="Löschen"><ha-icon icon="mdi:delete"></ha-icon></button><button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button></span>`;
     ipCell.innerHTML = `<input class="fbn-pihole-ip" value="${escapeHtml(row.dataset.ip || "")}" aria-label="IP-Adresse" inputmode="decimal" spellcheck="false">`;
-    nameCell.querySelector("input").focus();
+    requestAnimationFrame(() => {
+      const input = row.querySelector(".fbn-pihole-names");
+      if (input && input.isConnected) input.focus();
+    });
   }
 
   _bindPihole() {
     const root = this.querySelector(".fbn-root");
     if (!root || root.dataset.piholeBound) return;
     root.dataset.piholeBound = "1";
+    root.addEventListener("keydown", (event) => {
+      if (!event.target.matches(".fbn-pihole-names, .fbn-pihole-ip")) return;
+      // Home Assistant verwendet Buchstaben als globale Tastenkürzel. Solange
+      // ein DNS-Feld aktiv ist, dürfen diese Ereignisse die Karte nicht verlassen.
+      event.stopPropagation();
+      const row = event.target.closest(".fbn-pihole-row");
+      if (!row) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        row.querySelector(".fbn-pihole-cancel")?.click();
+      } else if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        row.querySelector(".fbn-pihole-save")?.click();
+      }
+    });
     root.addEventListener("click", async (event) => {
       const sync = event.target.closest(".fbn-pihole-sync");
       if (sync) {
@@ -1307,6 +1325,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       }
       const add = event.target.closest(".fbn-pihole-add");
       if (add) {
+        event.preventDefault();
         const body = this.querySelector(".fbn-body");
         if (!body) return;
         if (!this._config.show_name || !this._config.show_ip) {
@@ -1323,17 +1342,11 @@ class FritzSyncNetworkCard extends HTMLElement {
         this._renderBody();
         const row = body.querySelector(".fbn-pihole-draft");
         if (!row) return;
-        row.addEventListener("keydown", (keyEvent) => {
-          if (keyEvent.key === "Escape") {
-            keyEvent.preventDefault();
-            row.querySelector(".fbn-pihole-cancel")?.click();
-          } else if (keyEvent.key === "Enter" && !keyEvent.shiftKey) {
-            keyEvent.preventDefault();
-            row.querySelector(".fbn-pihole-save")?.click();
-          }
-        });
         row.scrollIntoView({ behavior: "smooth", block: "center" });
-        row.querySelector(".fbn-pihole-names").focus();
+        requestAnimationFrame(() => {
+          const input = row.querySelector(".fbn-pihole-names");
+          if (input && input.isConnected) input.focus();
+        });
         return;
       }
       const row = event.target.closest(".fbn-pihole-row");
@@ -1356,6 +1369,8 @@ class FritzSyncNetworkCard extends HTMLElement {
       const remove = event.target.closest(".fbn-pihole-delete");
       const save = event.target.closest(".fbn-pihole-save");
       if (!remove && !save) {
+        event.preventDefault();
+        event.stopPropagation();
         this._editPiholeRow(row);
         return;
       }
