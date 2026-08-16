@@ -5,7 +5,6 @@ const ICONS = {
 
 class FritzSyncNetworkCard extends HTMLElement {
   setConfig(config) {
-    if (!config.entity) throw new Error("entity ist erforderlich");
     this.config = { title: "Netzwerk", show_offline: true, ...config };
     this.selected = null;
     this.filter = "all";
@@ -16,6 +15,14 @@ class FritzSyncNetworkCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (!this.config.entity) {
+      this.config.entity = Object.keys(hass.states).find((entityId) => {
+        const state = hass.states[entityId];
+        return entityId.startsWith("sensor.") &&
+          Array.isArray(state?.attributes?.hosts) &&
+          Boolean(state?.attributes?.entry_id);
+      });
+    }
     this.render();
   }
 
@@ -81,7 +88,10 @@ class FritzSyncNetworkCard extends HTMLElement {
     if (!this._hass || !this.config || !this.shadowRoot) return;
     const state = this._hass.states[this.config.entity];
     if (!state) {
-      this.shadowRoot.innerHTML = `<ha-card><div class="empty">Entität ${this._escape(this.config.entity)} nicht gefunden</div></ha-card>`;
+      const target = this.config.entity
+        ? `Entität ${this._escape(this.config.entity)} nicht gefunden`
+        : "Kein FritzSync-Network-Sensor gefunden. Bitte zuerst die Integration einrichten.";
+      this.shadowRoot.innerHTML = `<style>${this._styles()}</style><ha-card><div class="empty">${target}</div></ha-card>`;
       return;
     }
     const attrs = state.attributes || {};

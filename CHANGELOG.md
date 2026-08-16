@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+- FritzSync-Sensor in der Dashboard-Karte automatisch erkennen
+- fehlende oder veraltete Entitätskonfiguration verständlich anzeigen
+- Dashboard nicht mehr durch einen Konfigurationsfehler abbrechen
+
 ## 0.1.3
 
 - Dashboard-Karte kann von Home Assistant mehrfach konfiguriert werden
