@@ -78,13 +78,34 @@ def split_record(record: str) -> dict[str, str]:
     }
 
 
+def rename_candidates(
+    records: list[str], ip: str, old_fqdn: str, domain: str
+) -> list[str]:
+    """Findet den zu überschreibenden DNS-Eintrag über Namen oder Geräte-IP."""
+    suffix = "." + str(domain or "").strip().strip(".").lower()
+    result: list[str] = []
+    for record in records:
+        parts = record.split()
+        if len(parts) < 2:
+            continue
+        names = [name.lower().rstrip(".") for name in parts[1:]]
+        exact_name = old_fqdn.lower().rstrip(".") in names
+        same_device_ip = parts[0] == ip and any(
+            name.endswith(suffix) or name == suffix.removeprefix(".")
+            for name in names
+        )
+        if exact_name or same_device_ip:
+            result.append(record)
+    return result
+
+
 class PiholeClient:
     """Synchronisiert genau einen lokalen DNS-Eintrag ueber die Pi-hole-v6-API."""
 
     def __init__(self, address: str, password: str, domain: str, timeout: int = 15) -> None:
         address = str(address).strip().rstrip("/")
         if not address.startswith(("http://", "https://")):
-            address = f"http://{address}"
+            address = f"https://{address}"
         self.base_url = f"{address}/api"
         self.password = password
         self.domain = domain
@@ -104,6 +125,7 @@ class PiholeClient:
         import requests
 
         session = requests.Session()
+        session.verify = False
         try:
             auth = self._request(
                 session, "POST", "/auth", json={"password": self.password}
@@ -222,10 +244,7 @@ class PiholeClient:
             if desired in records and old_fqdn == new_fqdn:
                 return desired
 
-            old_records = [
-                record for record in records
-                if len(record.split()) >= 2 and old_fqdn in record.split()[1:]
-            ]
+            old_records = rename_candidates(records, ip, old_fqdn, self.domain)
             conflicting = [
                 record for record in records
                 if len(record.split()) >= 2
