@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.5
+
+- Zeilenumbruch in der Spalte `Verbindung` wieder zulassen, damit sie schmal eingestellt werden kann
+- Geschwindigkeitswerte weiterhin einzeilig darstellen
+
 ## 1.10.4
 
 - gespeicherte Pixelbreiten proportional auf die verfügbare Kartenbreite einpassen

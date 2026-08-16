@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.4";
+const FBN_VERSION = "1.10.5";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -2003,7 +2003,8 @@ class FritzSyncNetworkCard extends HTMLElement {
         vertical-align: middle; overflow: hidden; text-overflow: ellipsis;
         box-sizing: border-box; min-width: 0; max-width: 0;
       }
-      .fbn-col-connection, .fbn-col-speed { white-space: nowrap; }
+      .fbn-col-connection { white-space: normal; overflow-wrap: anywhere; }
+      .fbn-col-speed { white-space: nowrap; }
       .fbn-compact .fbn-td, .fbn-compact .fbn-th { padding: 4px 8px; }
       .fbn-tr:nth-child(even) { background: var(--fbn-row-alt-bg); }
       .fbn-tr.fbn-new { background: color-mix(in srgb, var(--warning-color, #ffb300) 20%, transparent); }
