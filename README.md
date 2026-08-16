@@ -1,16 +1,14 @@
 # FRITZ!Sync - Homeassistant
 
-Mehrfach zur gleichen IP gemeldete, inaktive FRITZ!Box-Einträge werden erkannt.
-Die Karte bietet dann **Dubletten bereinigen** an, zeigt vorab die betroffenen
-Namen, IP- und MAC-Adressen und löscht sie erst nach Bestätigung und erneuter
-Prüfung. Der aktive beziehungsweise beste Datensatz bleibt erhalten.
+Lokale Home-Assistant-Integration für FRITZ!Box-Netzwerkgeräte, Pi-hole-DNS und eine
+konfigurierbare Dashboard-Tabelle. Geräte lassen sich durchsuchen, filtern, umbenennen,
+aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
-Eine Home-Assistant-Integration, die alle Geräte im FRITZ!Box-Heimnetz als sortierbare
-Tabelle auf das Dashboard bringt – mit IP-Adresse, MAC-Adresse, Verbindungsart und dem
-passenden Home-Assistant-Gerätenamen.
-
-![Version](https://img.shields.io/badge/Version-1.0.0-blue)
+![Version](https://img.shields.io/badge/Version-1.10.2-blue)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
+![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)
+![FRITZ!OS](https://img.shields.io/badge/FRITZ!OS-8.x-E2001A)
+![Pi--hole](https://img.shields.io/badge/Pi--hole-6.x-96060C)
 
 ---
 
@@ -27,6 +25,7 @@ passenden Home-Assistant-Gerätenamen.
   - [Sortieren, filtern, suchen](#sortieren-filtern-suchen)
   - [Wischen und Blättern auf dem Smartphone](#wischen-und-blättern-auf-dem-smartphone)
   - [IP-Adresse öffnet die Weboberfläche](#ip-adresse-öffnet-die-weboberfläche)
+  - [Excel-Export](#excel-export)
   - [Detail-Popup](#detail-popup)
   - [Farben](#farben)
   - [Beispiel-YAML](#beispiel-yaml)
@@ -40,20 +39,28 @@ passenden Home-Assistant-Gerätenamen.
 
 ## Was die Integration kann
 
-- Alle bekannten Netzwerkgeräte der FRITZ!Box als **eine** Tabelle im Dashboard
-- **Sortierbar** durch Klick auf jede Spaltenüberschrift, auch per Tastatur
-- **Suchfeld** über Name, IP-Adresse, MAC-Adresse, Modell und Home-Assistant-Namen
-- **Filterleiste**: Alle, Aktiv, Inaktiv, Gast, Gesperrt, Update
-- **Home-Assistant-Gerätename** je Zeile, automatisch über die MAC-Adresse zugeordnet
+- FRITZ!Box- und manuelle Pi-hole-DNS-Einträge als **gemeinsame, nach IP sortierbare Tabelle**
+- WebUI-`netDev` als Masterquelle für MAC, IPv4 und sichtbaren Namen; bereinigter
+  TR-064-Fallback ohne historische `PC-<MAC>`-Karteileichen
+- **Sortierung, Suche und kombinierbare Filter** für Status, neue Geräte, manuelle
+  DNS-Einträge, Heimnetz und Gastnetz
+- frei wählbare und verschiebbare Spalten; Breiten direkt am Tabellenkopf ziehen und
+  browserbezogen speichern
+- Unterscheidung zwischen **LAN, WLAN, Gast LAN und Gast WLAN**
+- **PTR 1/PTR 2**, Kommentare, IP-Typ, Verbindung, Tempo und Home-Assistant-Zuordnung
+- neue Geräte gelb markieren und per bestätigtem Klick als bekannt übernehmen
+- sichtbaren Gerätenamen nach Bestätigung direkt in der FRITZ!Box ändern
+- optional beim Umbenennen den passenden lokalen Pi-hole-DNS-Eintrag aktualisieren
+- manuelle Pi-hole-DNS-Einträge anzeigen, anlegen, bearbeiten und löschen
+- bestätigter Gesamtabgleich aller geeigneten FRITZ!Box-Geräte mit Pi-hole
+- **echter XLSX-Export** der aktuell sichtbaren Spalten und gefilterten Zeilen
+- Aktualisieren lädt Geräteliste, PTR 1/2 und IP-Typ vollständig neu
 - **Detail-Popup** bei Klick auf eine Zeile: zeigt alle Felder eines Geräts – auch die
-  auf schmalen Karten ausgeblendeten wie die MAC-Adresse –, mit Kopier-Knöpfen,
-  Wake-on-LAN und Sprung zum Home-Assistant-Gerät
+  außerhalb des sichtbaren Bereichs liegenden –, mit Kopier-Knöpfen, Wake-on-LAN,
+  Umbenennen, Kommentar und Sprung zum Home-Assistant-Gerät
 - **Wischen und Blättern** auf dem Smartphone: alle Spalten per Wischen oder Pfeilen
   erreichbar, Gerätename bleibt dabei stehen
 - **Klick auf die IP-Adresse** öffnet die Weboberfläche des Geräts im Browser
-- **IP-Typ** (DHCP oder statisch) inklusive Restlaufzeit der DHCP-Zuweisung
-- **Internetzugang gesperrt** (Kindersicherung) und **Firmware-Update verfügbar** auf
-  einen Blick
 - Vollständig über die Oberfläche konfigurierbar, inklusive **frei wählbarer Farben**
 - Zwei zusätzliche Zähler-Sensoren für Automatisierungen
 
@@ -64,7 +71,7 @@ eingetragen. Es ist keine separate Installation der Karte nötig.
 
 ## Voraussetzungen
 
-- Home Assistant 2024.11 oder neuer
+- Home Assistant 2025.1 oder neuer
 - Eine FRITZ!Box mit aktiviertem **„Zugriff für Anwendungen zulassen"**
   (Heimnetz → Netzwerk → Netzwerkeinstellungen)
 - Ein FRITZ!Box-Benutzer mit der Berechtigung **„FRITZ!Box Einstellungen"**
@@ -119,6 +126,10 @@ statt später still keine Daten zu liefern.
 | Abfrageintervall | 60 s | Wie oft die Geräteliste geholt wird (15–3600 s) |
 | IP-Typ erfassen | an | Ob DHCP/statisch ermittelt wird |
 | Intervall der IP-Typ-Abfrage | 15 min | Takt der IP-Typ-Erfassung |
+| Pi-hole synchronisieren | aus | Lokale DNS-Einträge anzeigen und Schreibaktionen aktivieren |
+| Pi-hole-Adresse | z. B. `http://pi.hole` | Adresse einer Pi-hole-6-Installation |
+| Pi-hole-Kennwort | – | Nur serverseitig im Home-Assistant-Konfigurationseintrag gespeichert |
+| Lokale DNS-Domain | `fritz.box` | Domain für automatisch erzeugte Gerätenamen |
 
 **Warum zwei Intervalle?** Die komplette Geräteliste kommt mit einem einzigen Aufruf von
 der FRITZ!Box. Die Angabe, ob eine IP-Adresse fest zugewiesen ist, steht dort aber nicht
@@ -189,6 +200,14 @@ Suchfeld und Filterleiste arbeiten zusammen: „Aktiv" plus Suchbegriff zeigt nu
 Geräte, auf die der Begriff passt. Beide Bedienelemente behalten ihren Inhalt, wenn der
 Sensor im Hintergrund neue Daten liefert.
 
+Die Filterchips lassen sich im Karteneditor einzeln ein- oder ausblenden. Statusfilter
+und Netzfilter sind kombinierbar, beispielsweise `Aktiv` zusammen mit dem Gastnetz.
+Neue Geräte besitzen einen eigenen Filter und bleiben markiert, bis sie bestätigt wurden.
+
+Spalten werden im Editor per Ziehen oder mit Hoch-/Runter-Schaltflächen angeordnet.
+Die Breite lässt sich direkt am rechten Rand eines Tabellenkopfs ziehen; ein Doppelklick
+setzt sie zurück. Die Breiten werden je Karte im Browser gespeichert.
+
 ### Pi-hole-DNS-Einträge
 
 Ist die Pi-hole-Synchronisierung aktiviert, werden ausschließlich eigene lokale
@@ -236,6 +255,18 @@ Geräte ohne eigene Weboberfläche (viele IoT-Geräte, Sensoren) beantworten `ht
 nicht – dann zeigt der Browser einen Fehler. Wer das vermeiden möchte, schaltet den
 Fallback ab; dann sind nur Geräte verlinkt, für die die FRITZ!Box tatsächlich eine Adresse
 meldet.
+
+### Excel-Export
+
+**Excel-Export** erzeugt eine echte `.xlsx`-Arbeitsmappe. Exportiert werden genau die
+aktuell angezeigten Zeilen nach Filter, Suche, Sortierung und Zeilenlimit. Ebenso werden
+nur die in der aktuellen Kartenansicht tatsächlich sichtbaren Spalten in ihrer gewählten
+Reihenfolge übernommen. Die Kopfzeile bleibt fixiert und die manuell gesetzten
+Spaltenbreiten fließen in die Arbeitsmappe ein.
+
+Alle Zellen werden als Text geschrieben. Dadurch interpretiert Excel Gerätenamen, die mit
+`=`, `+`, `-` oder `@` beginnen, nicht als Formeln. Die Datei wird vollständig lokal im
+Browser erzeugt; es werden keine Netzwerkdaten an einen externen Exportdienst übertragen.
 
 ### Detail-Popup
 
@@ -334,6 +365,20 @@ data:
   mac: "3C:A6:F6:00:11:22"
 ```
 
+### Weitere Dienste
+
+| Dienst | Funktion |
+| --- | --- |
+| `fritzsync_network.set_device_comment` | MAC-basierten Kommentar speichern oder entfernen |
+| `fritzsync_network.acknowledge_device` | Ein neues Gerät dauerhaft als bekannt bestätigen |
+| `fritzsync_network.pihole_add_record` | Manuellen lokalen DNS-Eintrag anlegen |
+| `fritzsync_network.pihole_update_record` | Vorhandenen manuellen DNS-Eintrag ersetzen |
+| `fritzsync_network.pihole_delete_record` | Manuellen DNS-Eintrag löschen |
+| `fritzsync_network.pihole_sync_all` | Geeignete FRITZ!Box-Geräte mit Pi-hole abgleichen |
+| `fritzsync_network.refresh` | Geräteliste, PTR 1/2 und IP-Typ sofort vollständig aktualisieren |
+
+Alle schreibenden Aktionen der Dashboard-Karte verlangen vorher eine Bestätigung.
+
 ---
 
 ## Fehlerbehebung
@@ -383,113 +428,26 @@ Neuladen des Browsers, in der Companion App das Leeren des App-Zwischenspeichers
 
 ## Entwicklung und Tests
 
-Die eigentliche Aufbereitungslogik liegt in `hosts.py` und enthält weder
-Home-Assistant- noch fritzconnection-Importe. Sie ist damit ohne laufende
-Home-Assistant-Instanz prüfbar:
+Die reine Datenaufbereitung in `hosts.py`, `fritzbox_web.py` und `pihole.py` lässt
+sich ohne laufende Home-Assistant-Instanz testen:
 
 ```bash
-python3 tests/test_hosts.py     # 29 Fälle
-node tests/test_card.js         # 95 Fälle, jsdom gegen die echte Kartendatei
+python -m unittest discover -s tests -v
+node --check custom_components/fritzsync_network/www/fritzsync-network-card.js
+python -m compileall -q custom_components/fritzsync_network
 ```
 
-Die JS-Tests laden die ausgelieferte `fritzsync-network-card.js` unverändert in ein echtes
-DOM und steuern die Karte genau so an, wie Lovelace es tut – über `setConfig()`, den
-`hass`-Setter und echte Klick- und Tastaturereignisse. Es gibt keine zweite Kopie des
-Kartencodes im Testaufbau.
+Der aktuelle Stand umfasst Tests für Hostnormalisierung, WebUI-/TR-064-Zusammenführung,
+private Router-IP-Auswahl, Pi-hole-v6-DNS-Einträge und Sitzungsfreigabe. Der XLSX-Export
+wird zusätzlich gegen ZIP-Integrität sowie mit OpenPyXL und LibreOffice geprüft.
 
 ---
 
 ## Versionshistorie
 
-### 1.6.0 – Spaltenreihenfolge und Filterauswahl
-
-- Spalten lassen sich im Karteneditor per Drag-and-drop oder über Hoch/Runter-Knöpfe
-  frei anordnen; ausgeblendete Spalten behalten ihre Position.
-- Unter **Darstellung** kann jeder Filterchip einzeln ein- oder ausgeblendet werden,
-  einschließlich der dynamischen Heimnetz-/Gast-Netzfilter.
-- Der unruhige Hover-Farbwechsel der Tabellenzeilen wurde entfernt. Mauszeiger und
-  Tastaturfokus erzeugen jetzt keinen blinkenden Spalten-/Zeileneffekt mehr.
-
-### 1.5.1 – Speichern der Pi-hole-Einstellungen
-
-- Verhindert einen doppelten Integrations-Reload beim Speichern der Optionen.
-- Pi-hole-Adresse und Domain werden vor dem Speichern normalisiert.
-- Ein fehlendes Pi-hole-Kennwort erzeugt eine verständliche Feldmeldung statt eines
-  allgemeinen Fehlers.
-
-### 1.5.0 – Excel-Export
-
-- Neue Exportauswahl direkt in der Kartenleiste.
-- Exportiert wahlweise alle Geräte oder exakt die aktuell gefilterte Ansicht.
-- Echte `.xlsx`-Arbeitsmappe mit formatierter Excel-Tabelle, fixierter Kopfzeile,
-  Autofilter und passenden Spaltenbreiten.
-- Enthält sämtliche wichtigen FRITZ!Box-, Netzwerk-, Pi-hole/PTR- und
-  Home-Assistant-Spalten.
-- Schutz vor einer unbeabsichtigten Ausführung von Gerätenamen als Excel-Formeln.
-
-### 1.4.0 – Pi-hole-DNS beim Umbenennen
-
-- Optionale Anbindung an die authentifizierte Pi-hole-v6-API.
-- Nach bestätigtem Umbenennen wird der zugehörige lokale DNS-Eintrag von
-  `alter-name.fritz.box` auf `neuer-name.fritz.box` umgestellt.
-- Die Namensnormalisierung entspricht FRITZSync; Umlaute werden beispielsweise zu
-  `ae`, `oe`, `ue` und `ss`.
-- Es werden nur der exakte alte und neue Gerätename innerhalb der eingestellten Domain
-  bearbeitet. Andere lokale DNS-Einträge bleiben unangetastet.
-- Voreinstellungen für dieses Netz: Pi-hole `192.168.9.252`, Domain `fritz.box`.
-- Neue Geräte besitzen direkt in der Tabellenzeile den eindeutigen Knopf
-  **Neu bestätigen**; dieselbe Aktion steht zusätzlich im Geräte-Popup bereit.
-
-### 1.3.0 – Netztypen und kombinierbare Filter
-
-- Die Netzspalte unterscheidet jetzt `LAN`, `WLAN`, `Gast LAN` und `Gast WLAN`.
-- Fremde bzw. Gast-Subnetze heißen in der Oberfläche kurz `Gast`.
-- Subnetz- und Statusfilter sind kombinierbar: Ein ausgewähltes Netz kann mit `Aktiv`
-  (Standard), `Alle`, `Inaktiv`, `Gesperrt`, `Update` oder `Neu` weiter eingeschränkt werden.
-- Ein ausgewählter Netzfilter lässt sich durch erneuten Klick wieder lösen.
-
-### 1.1.0 – Blättern statt Spalten verstecken
-
-- Auf schmalen Karten werden **keine Spalten mehr versteckt**. Stattdessen wird die Tabelle
-  waagerecht scrollbar – die zuvor auf dem Smartphone fehlende Spalte *Home Assistant* (und
-  alle weiteren) ist damit wieder erreichbar.
-- **Blätter-Pfeile** am linken und rechten Rand, zusätzlich zum Wischen mit dem Finger. Sie
-  erscheinen nur, wenn in ihre Richtung noch etwas verborgen ist.
-- **Statuspunkt und Gerätename bleiben beim Blättern stehen** (fixierte Spalten).
-- Ersetzt das Kategorie-Wischen aus 1.0.0, das die eigentliche Ursache – ausgeblendete
-  Spalten auf dem Telefon – nicht behob.
-- Neue Schalter *Blätter-Pfeile bei breiter Tabelle* und *Gerätename beim Blättern
-  festhalten* (der frühere *Wischen wechselt die Kategorie* entfällt).
-
-### 1.0.0 – Erste stabile Version
-
-- **Wischgeste** auf schmalen Karten: nach links oder rechts zwischen den Kategorien
-  blättern (Smartphone)
-- **Klick auf die IP-Adresse** öffnet die Weboberfläche des Geräts im Browser; im Popup
-  zusätzlich der Knopf *Weboberfläche öffnen*
-- Icons an die Schwester-Integration *FRITZ!Box Anrufe* angeglichen (Farben-Sektion
-  `mdi:palette-outline`, Zurücksetzen `mdi:restore`, sowie die geteilten Symbole
-  `mdi:close`, `mdi:check`, `mdi:chevron-down`, `mdi:table-column`)
-- Neue Schalter: *Wischen wechselt die Kategorie*, *Klick auf die IP öffnet die
-  Weboberfläche*, *Notfalls http://IP verwenden*
-
-### 0.2.0 – Detail-Popup
-
-- Klick oder Enter auf eine Zeile öffnet ein Popup mit allen Feldern des Geräts,
-  einschließlich der MAC-Adresse, die auf schmalen Karten in der Tabelle ausgeblendet wird
-- Kopier-Knöpfe für IP- und MAC-Adresse
-- Aktionen im Popup: *In Home Assistant öffnen* und *Aufwecken (WoL)*
-- Zeilen sind jetzt per Tastatur erreichbar (Tab, Enter)
-- Neuer Schalter *Klick öffnet ein Detail-Popup* (Standard: an). Ist er aus, gilt wieder
-  das bisherige Verhalten des Schalters *Klick öffnet das Home-Assistant-Gerät*
-
-### 0.1.0 – Erstveröffentlichung
-
-- Integration mit Einrichtungsdialog, erneuter Anmeldung und Options-Flow
-- Sammelsensor mit vollständiger Geräteliste plus zwei Zähler-Sensoren
-- Dashboard-Karte mit Sortierung, Suche, Filterleiste, zwölf Spalten und Farbeditor
-- IP-Typ-Erfassung in eigenem, langsamerem Takt
-- Dienste `set_device_name` und `wake_on_lan`
+Alle Änderungen einschließlich Fehlerkorrekturen stehen im [Changelog](CHANGELOG.md).
+Die aktuell installierte Version wird in HACS und in den Geräteinformationen der
+Integration angezeigt.
 
 ---
 
