@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.2";
+const FBN_VERSION = "1.10.3";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -509,11 +509,17 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   _columnStyle(column) {
-    const width = Number(this._columnWidths[column.key]) || 0;
-    const sizing = width > 0
-      ? `;width:${width}px;min-width:${width}px;max-width:${width}px`
-      : "";
-    return `text-align:${column.align || "left"}${sizing}`;
+    return `text-align:${column.align || "left"}`;
+  }
+
+  _renderColgroup() {
+    const group = this.querySelector(".fbn-colgroup");
+    if (!group) return;
+    group.innerHTML = this._visibleColumns().map((column) => {
+      const width = Number(this._columnWidths[column.key]) || 0;
+      const style = width > 0 ? ` style="width:${width}px"` : "";
+      return `<col class="fbn-coldef-${column.key}"${style}>`;
+    }).join("");
   }
 
   _saveColumnWidths() {
@@ -655,6 +661,7 @@ class FritzSyncNetworkCard extends HTMLElement {
           </button>
           <div class="fbn-scroll">
             <table class="fbn-table">
+              <colgroup class="fbn-colgroup"></colgroup>
               <thead><tr class="fbn-head"></tr></thead>
               <tbody class="fbn-body"></tbody>
             </table>
@@ -1023,6 +1030,7 @@ class FritzSyncNetworkCard extends HTMLElement {
   _buildHead() {
     const row = this.querySelector(".fbn-head");
     if (!row) return;
+    this._renderColgroup();
     row.innerHTML = this._visibleColumns()
       .map((column) => {
         const label = column.key === "status" ? "Status" : column.label;
@@ -1079,11 +1087,8 @@ class FritzSyncNetworkCard extends HTMLElement {
           moveEvent.preventDefault();
           const width = Math.max(54, Math.min(600, Math.round(startWidth + moveEvent.clientX - startX)));
           this._columnWidths[key] = width;
-          this.querySelectorAll(`.fbn-col-${key}`).forEach((cell) => {
-            cell.style.width = `${width}px`;
-            cell.style.minWidth = `${width}px`;
-            cell.style.maxWidth = `${width}px`;
-          });
+          const column = this.querySelector(`.fbn-coldef-${key}`);
+          if (column) column.style.width = `${width}px`;
           this._updateArrows();
         };
         const stop = () => {
@@ -1106,11 +1111,8 @@ class FritzSyncNetworkCard extends HTMLElement {
         event.stopPropagation();
         delete this._columnWidths[handle.dataset.resize];
         this._saveColumnWidths();
-        this.querySelectorAll(`.fbn-col-${handle.dataset.resize}`).forEach((cell) => {
-          cell.style.removeProperty("width");
-          cell.style.removeProperty("min-width");
-          cell.style.removeProperty("max-width");
-        });
+        const column = this.querySelector(`.fbn-coldef-${handle.dataset.resize}`);
+        if (column) column.style.removeProperty("width");
         this._renderBody();
       });
     });
@@ -1422,7 +1424,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         (column) =>
           `<td class="fbn-td fbn-col-${column.key} fbn-prio-${column.prio}" style="text-align:${
             column.align || "left"
-          };${this._columnWidths[column.key] ? `width:${this._columnWidths[column.key]}px;min-width:${this._columnWidths[column.key]}px;max-width:${this._columnWidths[column.key]}px` : ""}">${this._renderCell(host, column.key)}</td>`
+          }">${this._renderCell(host, column.key)}</td>`
       )
       .join("");
     return `<tr class="${classes.join(" ")}"${macAttr}${extra}>${cells}</tr>`;
@@ -1945,7 +1947,11 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-arrow-left { left: 0; --fbn-arrow-dir: right; }
       .fbn-arrow-right { right: 0; --fbn-arrow-dir: left; }
       .fbn-arrow:focus-visible { outline: 2px solid var(--fbn-accent); outline-offset: -2px; }
-      .fbn-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.92em; }
+      .fbn-table {
+        width: 100%; min-width: 100%; border-collapse: collapse;
+        table-layout: fixed; font-size: 0.92em;
+      }
+      .fbn-coldef-status { width: 40px; }
       .fbn-th {
         position: sticky; top: 0; z-index: 1;
         background: var(--fbn-header-bg); color: var(--fbn-header-text);
@@ -1967,7 +1973,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-sorticon { --mdc-icon-size: 14px; width: 14px; height: 14px; }
       .fbn-td {
         padding: 8px 12px; border-bottom: 1px solid var(--fbn-border);
-        vertical-align: middle;
+        vertical-align: middle; overflow: hidden; text-overflow: ellipsis;
       }
       .fbn-col-connection, .fbn-col-speed { white-space: nowrap; }
       .fbn-compact .fbn-td, .fbn-compact .fbn-th { padding: 4px 8px; }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.3
+
+- Tabelle standardmäßig auf die verfügbare Kartenbreite einpassen
+- erst dann horizontal scrollen, wenn manuell gesetzte Spaltenbreiten zusammen wirklich breiter als die Karte sind
+- Spaltenbreiten zentral über ein `colgroup` statt widersprüchlich an jeder einzelnen Zelle setzen
+- Überlappen langer PTR-, Namens- oder Kommentarwerte mit Nachbarspalten verhindern
+
 ## 1.10.2
 
 - XLSX-Paket mit gültigem ZIP-Datum und vollständiger Arbeitsblatt-Dimension erzeugen
