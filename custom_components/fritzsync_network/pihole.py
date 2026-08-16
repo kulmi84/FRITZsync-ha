@@ -228,6 +228,52 @@ class PiholeClient:
         finally:
             session.close()
 
+    def sync_all(self, desired_records: list[str]) -> dict[str, int]:
+        """Gleicht alle übergebenen Geräte mit lokalen Pi-hole-DNS-Zeilen ab."""
+        desired = list(dict.fromkeys(" ".join(item.split()).lower() for item in desired_records))
+        desired = [item for item in desired if len(item.split()) >= 2]
+        desired_ips = {item.split()[0] for item in desired}
+        session = self._login()
+        try:
+            records = records_from_response(
+                self._request(session, "GET", "/config/dns/hosts").json()
+            )
+            deletes: list[str] = []
+            adds: list[str] = []
+            suffix = "." + self.domain.strip().strip(".").lower()
+            for target in desired:
+                parts = target.split()
+                ip, names = parts[0], set(parts[1:])
+                for record in records:
+                    old_parts = record.lower().split()
+                    if len(old_parts) < 2 or record in deletes or record.lower() == target:
+                        continue
+                    old_names = set(old_parts[1:])
+                    same_device = old_parts[0] == ip and any(
+                        name.endswith(suffix) for name in old_names
+                    )
+                    name_conflict = (
+                        bool(names.intersection(old_names))
+                        and old_parts[0] not in desired_ips
+                    )
+                    if same_device or name_conflict:
+                        deletes.append(record)
+                if target not in {record.lower() for record in records}:
+                    adds.append(target)
+
+            operations = [("DELETE", item) for item in deletes] + [
+                ("PUT", item) for item in adds
+            ]
+            for index, (method, record) in enumerate(operations):
+                restart = "true" if index == len(operations) - 1 else "false"
+                self._request(
+                    session, method,
+                    f"/config/dns/hosts/{quote(record, safe='')}?restart={restart}",
+                )
+            return {"devices": len(desired), "added": len(adds), "deleted": len(deletes)}
+        finally:
+            session.close()
+
     def sync_rename(self, ip: str, old_name: str, new_name: str) -> str:
         """Ersetzt nur den exakten alten lokalen DNS-Namen."""
         ip = str(ip or "").strip()

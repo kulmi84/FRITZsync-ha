@@ -49,12 +49,13 @@ from .const import (
     SERVICE_PIHOLE_ADD_RECORD,
     SERVICE_PIHOLE_UPDATE_RECORD,
     SERVICE_PIHOLE_DELETE_RECORD,
+    SERVICE_PIHOLE_SYNC_ALL,
     URL_BASE,
     VERSION,
 )
 from .coordinator import FritzSyncNetworkCoordinator
 from .hosts import normalize_mac
-from .pihole import PiholeApiError, PiholeClient
+from .pihole import PiholeApiError, PiholeClient, fqdn
 from .fritzbox_web import FritzBoxWebClient, FritzBoxWebError
 
 _LOGGER = logging.getLogger(__name__)
@@ -136,6 +137,7 @@ async def async_unload_entry(
             SERVICE_PIHOLE_ADD_RECORD,
             SERVICE_PIHOLE_UPDATE_RECORD,
             SERVICE_PIHOLE_DELETE_RECORD,
+            SERVICE_PIHOLE_SYNC_ALL,
         ):
             hass.services.async_remove(DOMAIN, service)
     return unloaded
@@ -345,6 +347,28 @@ def _async_register_services(hass: HomeAssistant) -> None:
     async def _handle_pihole_delete(call: ServiceCall) -> None:
         await _pihole_write("delete", call)
 
+    async def _handle_pihole_sync_all(call: ServiceCall) -> None:
+        coordinator = _first_coordinator()
+        options = coordinator.entry.options
+        domain = str(options.get(CONF_PIHOLE_DOMAIN, DEFAULT_PIHOLE_DOMAIN))
+        desired: list[str] = []
+        for host in (coordinator.data or {}).get("hosts", []):
+            ip = str(host.get("ip") or "").strip()
+            name = str(host.get("name") or "").strip()
+            if not ip or not name:
+                continue
+            try:
+                desired.append(f"{ip} {fqdn(name, domain)}")
+            except PiholeApiError:
+                continue
+        try:
+            await hass.async_add_executor_job(
+                coordinator.pihole_client().sync_all, desired
+            )
+        except (PiholeApiError, RequestException) as err:
+            raise HomeAssistantError(f"Pi-hole-Gesamtabgleich fehlgeschlagen: {err}") from err
+        await coordinator.async_request_refresh()
+
     if not hass.services.has_service(DOMAIN, SERVICE_SET_DEVICE_NAME):
         hass.services.async_register(
             DOMAIN, SERVICE_SET_DEVICE_NAME, _handle_set_device_name, schema=MAC_SCHEMA
@@ -378,4 +402,8 @@ def _async_register_services(hass: HomeAssistant) -> None:
         hass.services.async_register(
             DOMAIN, SERVICE_PIHOLE_DELETE_RECORD, _handle_pihole_delete,
             schema=PIHOLE_DELETE_SCHEMA,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_PIHOLE_SYNC_ALL):
+        hass.services.async_register(
+            DOMAIN, SERVICE_PIHOLE_SYNC_ALL, _handle_pihole_sync_all
         )

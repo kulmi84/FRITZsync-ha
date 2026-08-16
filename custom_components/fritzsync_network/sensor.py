@@ -22,6 +22,7 @@ from .const import (
     ATTR_LAST_SCAN,
     ATTR_PIHOLE_ERROR,
     ATTR_PIHOLE_ENABLED,
+    ATTR_PIHOLE_ENTRIES,
     ATTR_PIHOLE_RECORDS,
     ATTR_STATIC,
     ATTR_TOTAL,
@@ -89,7 +90,9 @@ class FritzSyncNetworkGeraeteSensor(FritzSyncNetworkBase):
     # Ohne diese Zeile schriebe der Recorder die komplette Geraeteliste bei
     # jeder Zustandsaenderung in die Datenbank - bei 60 Geraeten sind das
     # schnell 15-20 kB pro Eintrag.
-    _unrecorded_attributes = frozenset({ATTR_HOSTS, ATTR_PIHOLE_RECORDS})
+    _unrecorded_attributes = frozenset(
+        {ATTR_HOSTS, ATTR_PIHOLE_RECORDS, ATTR_PIHOLE_ENTRIES}
+    )
 
     def __init__(self, coordinator, entry) -> None:
         """Initialisiert den Sammelsensor."""
@@ -121,6 +124,7 @@ class FritzSyncNetworkGeraeteSensor(FritzSyncNetworkBase):
             ATTR_PIHOLE_RECORDS: data.get("pihole_records", []),
             ATTR_PIHOLE_ERROR: data.get("pihole_error", ""),
             ATTR_PIHOLE_ENABLED: data.get("pihole_enabled", False),
+            ATTR_PIHOLE_ENTRIES: data.get("pihole_entries", []),
         }
 
 

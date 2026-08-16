@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.0
+
+- alle Pi-hole-Einträge dauerhaft innerhalb der Haupttabelle anzeigen
+- DNS-Name und IP exakt unter den entsprechenden FRITZ!Box-Spalten ausrichten
+- Pi-hole-Zeilen kompakter darstellen
+- manuelle Einträge in der Spalte `Netz` als `manuell` kennzeichnen
+- alle vorhandenen FRITZ!Box-Geräte per bestätigtem Gesamtabgleich an Pi-hole übertragen
+
 ## 1.8.1
 
 - Pi-hole-Adressen ohne Protokoll standardmäßig über HTTPS ansprechen
