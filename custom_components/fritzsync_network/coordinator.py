@@ -126,6 +126,12 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return True
         return dt_util.utcnow() - self._ptr_scan >= self.address_source_interval
 
+    async def async_refresh_all(self) -> None:
+        """Aktualisiert auch die langsam getakteten IP-Typ- und PTR-Felder."""
+        self._address_source_scan = None
+        self._ptr_scan = None
+        await self.async_request_refresh()
+
     def _fetch_address_sources(self, macs: list[str]) -> None:
         """Holt DHCP/statisch je Geraet (ein SOAP-Aufruf pro MAC-Adresse)."""
         sources: dict[str, dict[str, Any]] = {}

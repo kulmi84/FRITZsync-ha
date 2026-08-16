@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.1";
+const FBN_VERSION = "1.10.2";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -357,6 +357,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._popupReturnFocus = null;
     this._onPopupKeydown = null;
     this._piholeEditing = "";
+    this._piholeDraft = false;
     this._columnWidths = {};
   }
 
@@ -736,9 +737,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       button.disabled = true;
       button.querySelector("ha-icon").setAttribute("icon", "mdi:loading");
       try {
-        await this._hass.callService("homeassistant", "update_entity", {
-          entity_id: this._config.entity,
-        });
+        await this._hass.callService("fritzsync_network", "refresh", {});
       } finally {
         button.disabled = false;
         button.querySelector("ha-icon").setAttribute("icon", "mdi:refresh");
@@ -860,7 +859,16 @@ class FritzSyncNetworkCard extends HTMLElement {
   /** Exportiert exakt die sichtbaren Spalten und gefilterten Zeilen als XLSX. */
   _exportXlsx() {
     const hosts = this._filteredHosts();
-    const visible = this._visibleColumns();
+    // Nicht nur die Kartenkonfiguration, sondern die wirklich gerenderte
+    // Ansicht ist massgeblich. Damit fehlen im Editor deaktivierte und auf
+    // der aktuellen Kartenbreite ausgeblendete Felder auch im Export.
+    const renderedKeys = Array.from(this.querySelectorAll(".fbn-head .fbn-th"))
+      .filter((cell) => window.getComputedStyle(cell).display !== "none")
+      .map((cell) => cell.dataset.sort)
+      .filter(Boolean);
+    const visible = this._visibleColumns().filter(
+      (column) => !renderedKeys.length || renderedKeys.includes(column.key)
+    );
     if (!visible.length) {
       window.alert("Für den Excel-Export ist keine Spalte eingeblendet.");
       return;
@@ -945,7 +953,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Netzwerkgeräte" sheetId="1" r:id="rId1"/></sheets></workbook>`,
       "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
       "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`,
-      "xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colWidths}</cols><sheetData>${sheetXmlRows}</sheetData><autoFilter ref="${tableRef}"/></worksheet>`,
+      "xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="${tableRef}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${colWidths}</cols><sheetData>${sheetXmlRows}</sheetData></worksheet>`,
     };
 
     const crcTable = new Uint32Array(256);
@@ -971,7 +979,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       const local = new Uint8Array(30 + nameBytes.length + data.length);
       const lv = new DataView(local.buffer);
       u32(lv, 0, 0x04034B50); u16(lv, 4, 20); u16(lv, 6, 0x0800);
-      u16(lv, 8, 0); u16(lv, 10, 0); u16(lv, 12, 0); u32(lv, 14, crc);
+      u16(lv, 8, 0); u16(lv, 10, 0); u16(lv, 12, 0x0021); u32(lv, 14, crc);
       u32(lv, 18, data.length); u32(lv, 22, data.length); u16(lv, 26, nameBytes.length); u16(lv, 28, 0);
       local.set(nameBytes, 30); local.set(data, 30 + nameBytes.length);
       chunks.push(local);
@@ -979,7 +987,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       const entry = new Uint8Array(46 + nameBytes.length);
       const ev = new DataView(entry.buffer);
       u32(ev, 0, 0x02014B50); u16(ev, 4, 20); u16(ev, 6, 20); u16(ev, 8, 0x0800);
-      u16(ev, 10, 0); u16(ev, 12, 0); u16(ev, 14, 0); u32(ev, 16, crc);
+      u16(ev, 10, 0); u16(ev, 12, 0); u16(ev, 14, 0x0021); u32(ev, 16, crc);
       u32(ev, 20, data.length); u32(ev, 24, data.length); u16(ev, 28, nameBytes.length);
       u16(ev, 30, 0); u16(ev, 32, 0); u16(ev, 34, 0); u16(ev, 36, 0); u32(ev, 38, 0); u32(ev, 42, offset);
       entry.set(nameBytes, 46); central.push(entry);
@@ -1064,8 +1072,11 @@ class FritzSyncNetworkCard extends HTMLElement {
         const header = handle.closest("th");
         const startX = event.clientX;
         const startWidth = header.getBoundingClientRect().width;
-        handle.setPointerCapture(event.pointerId);
+        handle.classList.add("fbn-resizing");
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
         const move = (moveEvent) => {
+          moveEvent.preventDefault();
           const width = Math.max(54, Math.min(600, Math.round(startWidth + moveEvent.clientX - startX)));
           this._columnWidths[key] = width;
           this.querySelectorAll(`.fbn-col-${key}`).forEach((cell) => {
@@ -1076,14 +1087,19 @@ class FritzSyncNetworkCard extends HTMLElement {
           this._updateArrows();
         };
         const stop = () => {
-          handle.removeEventListener("pointermove", move);
-          handle.removeEventListener("pointerup", stop);
-          handle.removeEventListener("pointercancel", stop);
+          window.removeEventListener("pointermove", move, true);
+          window.removeEventListener("pointerup", stop, true);
+          window.removeEventListener("pointercancel", stop, true);
+          handle.classList.remove("fbn-resizing");
+          document.body.style.removeProperty("cursor");
+          document.body.style.removeProperty("user-select");
           this._saveColumnWidths();
         };
-        handle.addEventListener("pointermove", move);
-        handle.addEventListener("pointerup", stop);
-        handle.addEventListener("pointercancel", stop);
+        // Auf window lauschen: Home Assistant kann den Zeiger beim Ziehen aus
+        // dem Header/Editor heraus bewegen; der Griff verliert ihn dann nicht.
+        window.addEventListener("pointermove", move, true);
+        window.addEventListener("pointerup", stop, true);
+        window.addEventListener("pointercancel", stop, true);
       });
       handle.addEventListener("dblclick", (event) => {
         event.preventDefault();
@@ -1172,7 +1188,12 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
 
     const columns = this._visibleColumns();
-    body.innerHTML = hosts.map((host) => this._renderRow(host, columns)).join("");
+    const draft = this._piholeDraft
+      ? this._renderPiholeRow(
+          {record: "", names: "", ip: "", managed: false}, columns, true, true
+        )
+      : "";
+    body.innerHTML = draft + hosts.map((host) => this._renderRow(host, columns)).join("");
 
     if (!body.dataset.bound) {
       body.dataset.bound = "1";
@@ -1262,16 +1283,20 @@ class FritzSyncNetworkCard extends HTMLElement {
       if (add) {
         const body = this.querySelector(".fbn-body");
         if (!body) return;
+        if (!this._config.show_name || !this._config.show_ip) {
+          window.alert("Für einen neuen DNS-Eintrag müssen die Spalten FRITZ!Box-Name und IP-Adresse eingeblendet sein.");
+          return;
+        }
         const existing = body.querySelector(".fbn-pihole-draft");
         if (existing) {
           existing.scrollIntoView({ behavior: "smooth", block: "center" });
           existing.querySelector(".fbn-pihole-names")?.focus();
           return;
         }
-        const template = document.createElement("tbody");
-        template.innerHTML = this._renderPiholeRow({record: "", names: "", ip: "", managed: false}, this._visibleColumns(), true);
-        const row = template.firstElementChild;
-        body.prepend(row);
+        this._piholeDraft = true;
+        this._renderBody();
+        const row = body.querySelector(".fbn-pihole-draft");
+        if (!row) return;
         row.addEventListener("keydown", (keyEvent) => {
           if (keyEvent.key === "Escape") {
             keyEvent.preventDefault();
@@ -1290,7 +1315,8 @@ class FritzSyncNetworkCard extends HTMLElement {
       if (event.target.closest(".fbn-pihole-cancel")) {
         this._piholeEditing = "";
         if (row.classList.contains("fbn-pihole-draft")) {
-          row.remove();
+          this._piholeDraft = false;
+          this._renderBody();
         } else {
           row.outerHTML = this._renderPiholeRow({
             record: row.dataset.record,
@@ -1336,6 +1362,7 @@ class FritzSyncNetworkCard extends HTMLElement {
           });
         }
         this._piholeEditing = "";
+        this._piholeDraft = false;
         button.blur();
         this._renderBody();
       } catch (error) {
@@ -1918,7 +1945,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-arrow-left { left: 0; --fbn-arrow-dir: right; }
       .fbn-arrow-right { right: 0; --fbn-arrow-dir: left; }
       .fbn-arrow:focus-visible { outline: 2px solid var(--fbn-accent); outline-offset: -2px; }
-      .fbn-table { width: 100%; border-collapse: collapse; font-size: 0.92em; }
+      .fbn-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.92em; }
       .fbn-th {
         position: sticky; top: 0; z-index: 1;
         background: var(--fbn-header-bg); color: var(--fbn-header-text);
@@ -1927,14 +1954,14 @@ class FritzSyncNetworkCard extends HTMLElement {
         border-bottom: 1px solid var(--fbn-border);
       }
       .fbn-resizer {
-        position: absolute; top: 0; right: -4px; bottom: 0; width: 9px;
+        position: absolute; top: 0; right: -7px; bottom: 0; width: 15px;
         z-index: 6; cursor: col-resize; touch-action: none;
       }
       .fbn-resizer::after {
-        content: ""; position: absolute; top: 20%; bottom: 20%; left: 4px;
-        width: 1px; background: transparent;
+        content: ""; position: absolute; top: 18%; bottom: 18%; left: 7px;
+        width: 2px; background: color-mix(in srgb, var(--fbn-border) 65%, transparent);
       }
-      .fbn-resizer:hover::after { background: var(--fbn-accent); }
+      .fbn-resizer:hover::after, .fbn-resizer.fbn-resizing::after { background: var(--fbn-accent); }
       .fbn-th-inner { display: inline-flex; align-items: center; gap: 4px; }
       .fbn-th.fbn-sorted { color: var(--fbn-accent); }
       .fbn-sorticon { --mdc-icon-size: 14px; width: 14px; height: 14px; }

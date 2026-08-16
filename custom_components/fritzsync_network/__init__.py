@@ -51,6 +51,7 @@ from .const import (
     SERVICE_PIHOLE_DELETE_RECORD,
     SERVICE_PIHOLE_SYNC_ALL,
     SERVICE_CLEANUP_STALE_HOSTS,
+    SERVICE_REFRESH,
     URL_BASE,
     VERSION,
 )
@@ -140,6 +141,7 @@ async def async_unload_entry(
             SERVICE_PIHOLE_DELETE_RECORD,
             SERVICE_PIHOLE_SYNC_ALL,
             SERVICE_CLEANUP_STALE_HOSTS,
+            SERVICE_REFRESH,
         ):
             hass.services.async_remove(DOMAIN, service)
     return unloaded
@@ -284,7 +286,9 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 )
             except (PiholeApiError, RequestException) as err:
                 pihole_error = err
-        await coordinator.async_request_refresh()
+        # Nach einer Umbenennung PTR 1/2 sofort neu abfragen. Der normale
+        # langsame PTR-Takt darf hier nicht noch den alten Namen anzeigen.
+        await coordinator.async_refresh_all()
         if pihole_error is not None:
             raise HomeAssistantError(
                 "FRITZ!Box wurde umbenannt, Pi-hole-Synchronisierung "
@@ -402,6 +406,10 @@ def _async_register_services(hass: HomeAssistant) -> None:
             ) from err
         await coordinator.async_request_refresh()
 
+    async def _handle_refresh(call: ServiceCall) -> None:
+        """Erzwingt denselben Vollabgleich wie der Aktualisieren-Button."""
+        await _first_coordinator().async_refresh_all()
+
     if not hass.services.has_service(DOMAIN, SERVICE_SET_DEVICE_NAME):
         hass.services.async_register(
             DOMAIN, SERVICE_SET_DEVICE_NAME, _handle_set_device_name, schema=MAC_SCHEMA
@@ -444,3 +452,5 @@ def _async_register_services(hass: HomeAssistant) -> None:
         hass.services.async_register(
             DOMAIN, SERVICE_CLEANUP_STALE_HOSTS, _handle_cleanup_stale_hosts
         )
+    if not hass.services.has_service(DOMAIN, SERVICE_REFRESH):
+        hass.services.async_register(DOMAIN, SERVICE_REFRESH, _handle_refresh)
