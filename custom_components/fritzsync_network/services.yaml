@@ -39,3 +39,40 @@ acknowledge_device:
       example: "3C:A6:F6:00:11:22"
       selector:
         text:
+
+pihole_add_record:
+  fields:
+    ip:
+      required: true
+      example: "192.168.9.178"
+      selector:
+        text:
+    dns_names:
+      required: true
+      example: "mk-esx20.fritz.box"
+      selector:
+        text:
+
+pihole_update_record:
+  fields:
+    old_record:
+      required: true
+      example: "192.168.9.178 mk-esx20.fritz.box"
+      selector:
+        text:
+    ip:
+      required: true
+      selector:
+        text:
+    dns_names:
+      required: true
+      selector:
+        text:
+
+pihole_delete_record:
+  fields:
+    old_record:
+      required: true
+      example: "192.168.9.178 mk-esx20.fritz.box"
+      selector:
+        text:
