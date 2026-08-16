@@ -55,7 +55,7 @@
           "track_address_source": "This value is not part of the host list and costs one extra request per device. It rarely changes, so it runs on its own slower schedule.",
           "address_source_interval": "Only applies when IP type tracking is enabled.",
           "pihole_enabled": "After a confirmed rename, updates only the matching local DNS record.",
-          "pihole_host": "http:// is added automatically when omitted.",
+          "pihole_host": "HTTPS is used when omitted; use an explicit http:// for HTTP.",
           "pihole_password": "Stored locally in the Home Assistant config entry and used only for Pi-hole v6 API authentication.",
           "pihole_domain": "DNS suffix used for managed device records."
         }
