@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+import ipaddress
 from urllib.parse import quote
 from typing import Any
 
@@ -50,6 +51,33 @@ def records_from_response(payload: object) -> list[str]:
     return [" ".join(str(item).split()) for item in hosts] if isinstance(hosts, list) else []
 
 
+def normalize_record(ip: str, names: str) -> str:
+    """Validiert und normalisiert eine Pi-hole-Hostzeile."""
+    ip_text = str(ip or "").strip()
+    try:
+        ipaddress.ip_address(ip_text)
+    except ValueError as err:
+        raise PiholeApiError(f"Ungültige IP-Adresse: {ip_text}") from err
+    tokens = [item.strip().lower().rstrip(".") for item in str(names or "").split() if item.strip()]
+    if not tokens:
+        raise PiholeApiError("Mindestens ein DNS-Name ist erforderlich")
+    pattern = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+    invalid = next((name for name in tokens if not pattern.fullmatch(name)), None)
+    if invalid:
+        raise PiholeApiError(f"Ungültiger DNS-Name: {invalid}")
+    return " ".join([ip_text, *tokens])
+
+
+def split_record(record: str) -> dict[str, str]:
+    """Zerlegt eine Pi-hole-Hostzeile fuer die Dashboard-Karte."""
+    parts = str(record or "").split()
+    return {
+        "record": " ".join(parts),
+        "ip": parts[0] if parts else "",
+        "names": " ".join(parts[1:]) if len(parts) > 1 else "",
+    }
+
+
 class PiholeClient:
     """Synchronisiert genau einen lokalen DNS-Eintrag ueber die Pi-hole-v6-API."""
 
@@ -71,18 +99,12 @@ class PiholeClient:
             raise PiholeApiError(f"Pi-hole API: HTTP {response.status_code}: {detail}")
         return response
 
-    def sync_rename(self, ip: str, old_name: str, new_name: str) -> str:
-        """Ersetzt nur den exakten alten lokalen DNS-Namen."""
+    def _login(self):
+        """Erzeugt eine angemeldete requests-Session."""
         import requests
 
-        ip = str(ip or "").strip()
-        if not ip:
-            raise PiholeApiError("Das Gerät besitzt keine IP-Adresse")
-        old_fqdn = fqdn(old_name, self.domain)
-        new_fqdn = fqdn(new_name, self.domain)
-        desired = f"{ip} {new_fqdn}"
-
-        with requests.Session() as session:
+        session = requests.Session()
+        try:
             auth = self._request(
                 session, "POST", "/auth", json={"password": self.password}
             ).json()
@@ -90,7 +112,111 @@ class PiholeClient:
             if not api_session.get("valid") or not api_session.get("sid"):
                 raise PiholeApiError("Anmeldung an Pi-hole fehlgeschlagen")
             session.headers["X-FTL-SID"] = str(api_session["sid"])
+            return session
+        except Exception:
+            session.close()
+            raise
 
+    def list_records(self) -> list[str]:
+        """Liest alle lokalen DNS-Hostzeilen aus Pi-hole 6."""
+        session = self._login()
+        try:
+            payload = self._request(session, "GET", "/config/dns/hosts").json()
+            return records_from_response(payload)
+        finally:
+            session.close()
+
+    def add_record(self, ip: str, names: str) -> str:
+        """Legt eine manuelle Hostzeile an."""
+        desired = normalize_record(ip, names)
+        session = self._login()
+        try:
+            records = records_from_response(
+                self._request(session, "GET", "/config/dns/hosts").json()
+            )
+            if desired in records:
+                return desired
+            desired_names = set(desired.split()[1:])
+            conflict = next(
+                (record for record in records if desired_names.intersection(record.split()[1:])),
+                None,
+            )
+            if conflict:
+                raise PiholeApiError(f"DNS-Name bereits vorhanden: {conflict}")
+            self._request(
+                session, "PUT",
+                f"/config/dns/hosts/{quote(desired, safe='')}?restart=true",
+            )
+            return desired
+        finally:
+            session.close()
+
+    def delete_record(self, record: str, restart: bool = True) -> None:
+        """Löscht exakt eine vorhandene Hostzeile."""
+        normalized = " ".join(str(record or "").split())
+        if not normalized:
+            raise PiholeApiError("Der zu löschende Eintrag ist leer")
+        session = self._login()
+        try:
+            self._request(
+                session, "DELETE",
+                f"/config/dns/hosts/{quote(normalized, safe='')}?restart={'true' if restart else 'false'}",
+            )
+        finally:
+            session.close()
+
+    def replace_record(self, old_record: str, ip: str, names: str) -> str:
+        """Ersetzt eine Hostzeile und startet DNS erst nach dem neuen Eintrag."""
+        old = " ".join(str(old_record or "").split())
+        desired = normalize_record(ip, names)
+        if old == desired:
+            return desired
+        session = self._login()
+        try:
+            records = records_from_response(
+                self._request(session, "GET", "/config/dns/hosts").json()
+            )
+            if old not in records:
+                raise PiholeApiError("Der ursprüngliche Pi-hole-Eintrag existiert nicht mehr")
+            desired_names = set(desired.split()[1:])
+            conflict = next(
+                (record for record in records if record != old and desired_names.intersection(record.split()[1:])),
+                None,
+            )
+            if conflict:
+                raise PiholeApiError(f"DNS-Name bereits vorhanden: {conflict}")
+            self._request(
+                session, "DELETE",
+                f"/config/dns/hosts/{quote(old, safe='')}?restart=false",
+            )
+            try:
+                self._request(
+                    session, "PUT",
+                    f"/config/dns/hosts/{quote(desired, safe='')}?restart=true",
+                )
+            except Exception:
+                # Best effort rollback, damit ein Übertragungsfehler den alten
+                # DNS-Eintrag nicht still verschwinden lässt.
+                self._request(
+                    session, "PUT",
+                    f"/config/dns/hosts/{quote(old, safe='')}?restart=true",
+                )
+                raise
+            return desired
+        finally:
+            session.close()
+
+    def sync_rename(self, ip: str, old_name: str, new_name: str) -> str:
+        """Ersetzt nur den exakten alten lokalen DNS-Namen."""
+        ip = str(ip or "").strip()
+        if not ip:
+            raise PiholeApiError("Das Gerät besitzt keine IP-Adresse")
+        old_fqdn = fqdn(old_name, self.domain)
+        new_fqdn = fqdn(new_name, self.domain)
+        desired = f"{ip} {new_fqdn}"
+
+        session = self._login()
+        try:
             payload = self._request(session, "GET", "/config/dns/hosts").json()
             records = records_from_response(payload)
             if desired in records and old_fqdn == new_fqdn:
@@ -124,3 +250,5 @@ class PiholeClient:
                     session, "PUT", f"/config/dns/hosts/{encoded}?restart=true"
                 )
             return desired
+        finally:
+            session.close()

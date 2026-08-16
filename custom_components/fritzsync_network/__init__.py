@@ -27,6 +27,9 @@ from .const import (
     ATTR_COMMENT,
     ATTR_MAC,
     ATTR_NAME,
+    ATTR_IP,
+    ATTR_DNS_NAMES,
+    ATTR_OLD_RECORD,
     CARD_FILENAME,
     CARD_URL,
     CONF_PIHOLE_DOMAIN,
@@ -43,6 +46,9 @@ from .const import (
     SERVICE_SET_COMMENT,
     SERVICE_ACKNOWLEDGE_DEVICE,
     SERVICE_WAKE_ON_LAN,
+    SERVICE_PIHOLE_ADD_RECORD,
+    SERVICE_PIHOLE_UPDATE_RECORD,
+    SERVICE_PIHOLE_DELETE_RECORD,
     URL_BASE,
     VERSION,
 )
@@ -67,6 +73,17 @@ COMMENT_SCHEMA = vol.Schema(
         vol.Optional(ATTR_COMMENT, default=""): cv.string,
     }
 )
+PIHOLE_ADD_SCHEMA = vol.Schema(
+    {vol.Required(ATTR_IP): cv.string, vol.Required(ATTR_DNS_NAMES): cv.string}
+)
+PIHOLE_UPDATE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_OLD_RECORD): cv.string,
+        vol.Required(ATTR_IP): cv.string,
+        vol.Required(ATTR_DNS_NAMES): cv.string,
+    }
+)
+PIHOLE_DELETE_SCHEMA = vol.Schema({vol.Required(ATTR_OLD_RECORD): cv.string})
 
 
 async def async_setup_entry(
@@ -116,6 +133,9 @@ async def async_unload_entry(
             SERVICE_WAKE_ON_LAN,
             SERVICE_SET_COMMENT,
             SERVICE_ACKNOWLEDGE_DEVICE,
+            SERVICE_PIHOLE_ADD_RECORD,
+            SERVICE_PIHOLE_UPDATE_RECORD,
+            SERVICE_PIHOLE_DELETE_RECORD,
         ):
             hass.services.async_remove(DOMAIN, service)
     return unloaded
@@ -293,6 +313,38 @@ def _async_register_services(hass: HomeAssistant) -> None:
         coordinator = _first_coordinator()
         await coordinator.async_acknowledge_device(normalize_mac(call.data[ATTR_MAC]))
 
+    async def _pihole_write(method: str, call: ServiceCall) -> None:
+        coordinator = _first_coordinator()
+        client = coordinator.pihole_client()
+        try:
+            if method == "add":
+                await hass.async_add_executor_job(
+                    client.add_record, call.data[ATTR_IP], call.data[ATTR_DNS_NAMES]
+                )
+            elif method == "update":
+                await hass.async_add_executor_job(
+                    client.replace_record,
+                    call.data[ATTR_OLD_RECORD],
+                    call.data[ATTR_IP],
+                    call.data[ATTR_DNS_NAMES],
+                )
+            else:
+                await hass.async_add_executor_job(
+                    client.delete_record, call.data[ATTR_OLD_RECORD]
+                )
+        except (PiholeApiError, RequestException) as err:
+            raise HomeAssistantError(f"Pi-hole-Änderung fehlgeschlagen: {err}") from err
+        await coordinator.async_request_refresh()
+
+    async def _handle_pihole_add(call: ServiceCall) -> None:
+        await _pihole_write("add", call)
+
+    async def _handle_pihole_update(call: ServiceCall) -> None:
+        await _pihole_write("update", call)
+
+    async def _handle_pihole_delete(call: ServiceCall) -> None:
+        await _pihole_write("delete", call)
+
     if not hass.services.has_service(DOMAIN, SERVICE_SET_DEVICE_NAME):
         hass.services.async_register(
             DOMAIN, SERVICE_SET_DEVICE_NAME, _handle_set_device_name, schema=MAC_SCHEMA
@@ -311,4 +363,19 @@ def _async_register_services(hass: HomeAssistant) -> None:
             SERVICE_ACKNOWLEDGE_DEVICE,
             _handle_acknowledge_device,
             schema=MAC_SCHEMA,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_PIHOLE_ADD_RECORD):
+        hass.services.async_register(
+            DOMAIN, SERVICE_PIHOLE_ADD_RECORD, _handle_pihole_add,
+            schema=PIHOLE_ADD_SCHEMA,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_PIHOLE_UPDATE_RECORD):
+        hass.services.async_register(
+            DOMAIN, SERVICE_PIHOLE_UPDATE_RECORD, _handle_pihole_update,
+            schema=PIHOLE_UPDATE_SCHEMA,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_PIHOLE_DELETE_RECORD):
+        hass.services.async_register(
+            DOMAIN, SERVICE_PIHOLE_DELETE_RECORD, _handle_pihole_delete,
+            schema=PIHOLE_DELETE_SCHEMA,
         )

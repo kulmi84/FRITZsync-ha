@@ -135,7 +135,8 @@ schriebe Home Assistant die vollständige Geräteliste bei jeder Änderung in di
 bei 60 Geräten rund 15–20 kB pro Eintrag.
 
 Weitere Attribute am Hauptsensor: `gesamt`, `aktiv`, `inaktiv`, `gastnetz`, `gesperrt`,
-`updates_verfuegbar`, `statische_ip`, `letzte_abfrage`, `letzte_ip_typ_abfrage`.
+`updates_verfuegbar`, `statische_ip`, `letzte_abfrage`, `letzte_ip_typ_abfrage`,
+`pihole_manuelle_eintraege` und `pihole_fehler`.
 
 ---
 
@@ -180,6 +181,19 @@ festlegen.
 Suchfeld und Filterleiste arbeiten zusammen: „Aktiv" plus Suchbegriff zeigt nur verbundene
 Geräte, auf die der Begriff passt. Beide Bedienelemente behalten ihren Inhalt, wenn der
 Sensor im Hintergrund neue Daten liefert.
+
+### Manuelle Pi-hole-DNS-Einträge
+
+Ist die Pi-hole-Synchronisierung in den Einstellungen aktiviert, erscheint unter der
+Gerätetabelle ein einklappbarer Bereich **„Manuelle Pi-hole-DNS-Einträge“**. Automatisch
+aus FRITZ!Box-Geräten abgeleitete Zuordnungen werden dort ausgeblendet. Eigene Einträge –
+etwa für WireGuard-Geräte, virtuelle Maschinen oder externe Adressen – lassen sich direkt
+anlegen, bearbeiten und löschen.
+
+Eine Zeile besteht aus einer gültigen IPv4- oder IPv6-Adresse und mindestens einem
+vollständigen DNS-Namen. Mehrere Aliasnamen werden durch Leerzeichen getrennt. Vor jedem
+Schreib- oder Löschvorgang zeigt die Karte eine Bestätigung. Die Zugangsdaten bleiben im
+Home-Assistant-Konfigurationseintrag und werden niemals an den Browser übertragen.
 
 ### Wischen und Blättern auf dem Smartphone
 

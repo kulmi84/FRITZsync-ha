@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0
+
+- manuelle Local-DNS-Einträge aus Pi-hole 6 in Home Assistant anzeigen
+- Pi-hole-Einträge mit Bestätigung anlegen, bearbeiten und löschen
+- eigener einklappbarer Pi-hole-Bereich im Stil von FRITZSync/Pi-hole Sync
+- Pi-hole-Fehler beeinträchtigen die FRITZ!Box-Geräteliste nicht
+
 ## 1.7.0
 
 - Anzeige in HACS und Home Assistant in `FRITZ!Sync - Homeassistant` umbenannt
