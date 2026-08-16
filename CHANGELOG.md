@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.10
+
+- nativen Fortschritts-Mauszeiger während Pi-hole-Speichern, Löschen und Gesamtabgleich anzeigen
+- Symbol der laufenden Schaltfläche bis zum abgeschlossenen Coordinator-Abgleich drehen
+- anonymisierte Screenshot-Galerie in die GitHub-Dokumentation aufnehmen
+
 ## 1.10.9
 
 - Tabellenkörper nach erfolgreichem Pi-hole-Speichern oder -Löschen bewusst neu aufbauen
