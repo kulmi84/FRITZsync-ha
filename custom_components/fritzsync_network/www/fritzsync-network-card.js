@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.7.0";
+const FBN_VERSION = "1.8.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -59,6 +59,7 @@ const CONFIG_DEFAULTS = {
   show_filter_new: true,
   show_filter_networks: true,
   show_refresh: true,
+  show_pihole_records: true,
   hide_inactive: false,
   compact: false,
   max_rows: 0,
@@ -513,6 +514,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     if (changed) this._buildFilters();
     this._renderSummary();
     this._renderBody();
+    this._renderPihole();
     if (changed) this._renderHead();
     if (this._popup) this._refreshPopup();
   }
@@ -564,6 +566,19 @@ class FritzSyncNetworkCard extends HTMLElement {
           </button>
         </div>
         <div class="fbn-empty" hidden>Keine Geräte gefunden.</div>
+        <details class="fbn-pihole">
+          <summary>
+            <span><ha-icon icon="mdi:pi-hole"></ha-icon> Manuelle Pi-hole-DNS-Einträge</span>
+            <span class="fbn-pihole-count"></span>
+          </summary>
+          <div class="fbn-pihole-error" hidden></div>
+          <div class="fbn-pihole-list"></div>
+          <div class="fbn-pihole-actions">
+            <button class="fbn-btn fbn-pihole-add" type="button">
+              <ha-icon icon="mdi:plus"></ha-icon> Manuellen Eintrag hinzufügen
+            </button>
+          </div>
+        </details>
       </div>
     `;
     this.appendChild(card);
@@ -576,6 +591,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._buildExport();
     this._buildSearch();
     this._buildHead();
+    this._bindPihole();
     this._renderHead();
     this._observeWidth();
     this._bindScrollArrows(card.querySelector(".fbn-scrollwrap"));
@@ -1055,6 +1071,111 @@ class FritzSyncNetworkCard extends HTMLElement {
 
     // Nach jedem Neuaufbau kann sich die Gesamtbreite geaendert haben.
     this._updateArrows();
+  }
+
+  _piholeRecords() {
+    const state = this._stateObj();
+    const value = state && state.attributes
+      ? state.attributes.pihole_manuelle_eintraege
+      : [];
+    return Array.isArray(value) ? value : [];
+  }
+
+  _renderPihole() {
+    const section = this.querySelector(".fbn-pihole");
+    const list = this.querySelector(".fbn-pihole-list");
+    if (!section || !list) return;
+    const state = this._stateObj();
+    const attributes = (state && state.attributes) || {};
+    section.hidden = !this._config.show_pihole_records || !attributes.pihole_aktiv;
+    if (section.hidden) return;
+    // Eingaben des Nutzers während eines Sensorupdates nicht überschreiben.
+    if (section.contains(document.activeElement)) return;
+    const records = this._piholeRecords();
+    const count = section.querySelector(".fbn-pihole-count");
+    if (count) count.textContent = `${records.length} Einträge`;
+    const error = section.querySelector(".fbn-pihole-error");
+    if (error) {
+      error.hidden = !attributes.pihole_fehler;
+      error.textContent = attributes.pihole_fehler
+        ? `Pi-hole nicht verfügbar: ${attributes.pihole_fehler}` : "";
+    }
+    list.innerHTML = records.length ? records.map((item) => `
+      <div class="fbn-pihole-row" data-record="${escapeHtml(item.record)}">
+        <span class="fbn-badge fbn-badge-manual">manuell</span>
+        <input class="fbn-pihole-names" value="${escapeHtml(item.names)}"
+               aria-label="DNS-Name oder Aliasnamen" spellcheck="false">
+        <input class="fbn-pihole-ip" value="${escapeHtml(item.ip)}"
+               aria-label="IP-Adresse" inputmode="decimal" spellcheck="false">
+        <button class="fbn-icon-btn fbn-pihole-save" type="button" title="Änderung speichern">
+          <ha-icon icon="mdi:content-save"></ha-icon>
+        </button>
+        <button class="fbn-icon-btn fbn-pihole-delete" type="button" title="Eintrag löschen">
+          <ha-icon icon="mdi:delete"></ha-icon>
+        </button>
+      </div>`).join("") : `<div class="fbn-pihole-empty">Keine manuellen Pi-hole-Einträge vorhanden.</div>`;
+  }
+
+  _bindPihole() {
+    const section = this.querySelector(".fbn-pihole");
+    if (!section || section.dataset.bound) return;
+    section.dataset.bound = "1";
+    section.addEventListener("click", async (event) => {
+      const add = event.target.closest(".fbn-pihole-add");
+      if (add) {
+        const list = section.querySelector(".fbn-pihole-list");
+        const empty = list.querySelector(".fbn-pihole-empty");
+        if (empty) empty.remove();
+        const row = document.createElement("div");
+        row.className = "fbn-pihole-row fbn-pihole-draft";
+        row.innerHTML = `
+          <span class="fbn-badge fbn-badge-manual">neu</span>
+          <input class="fbn-pihole-names" placeholder="name.fritz.box" aria-label="DNS-Name oder Aliasnamen" spellcheck="false">
+          <input class="fbn-pihole-ip" placeholder="192.168.9.x" aria-label="IP-Adresse" inputmode="decimal" spellcheck="false">
+          <button class="fbn-icon-btn fbn-pihole-save" type="button" title="Eintrag anlegen"><ha-icon icon="mdi:content-save"></ha-icon></button>
+          <button class="fbn-icon-btn fbn-pihole-cancel" type="button" title="Verwerfen"><ha-icon icon="mdi:close"></ha-icon></button>`;
+        list.appendChild(row);
+        row.querySelector(".fbn-pihole-names").focus();
+        return;
+      }
+      const row = event.target.closest(".fbn-pihole-row");
+      if (!row) return;
+      if (event.target.closest(".fbn-pihole-cancel")) {
+        row.remove();
+        return;
+      }
+      const ip = row.querySelector(".fbn-pihole-ip").value.trim();
+      const names = row.querySelector(".fbn-pihole-names").value.trim();
+      const oldRecord = row.dataset.record || "";
+      const remove = event.target.closest(".fbn-pihole-delete");
+      const save = event.target.closest(".fbn-pihole-save");
+      if (!remove && !save) return;
+      const question = remove
+        ? `Pi-hole-DNS-Eintrag wirklich löschen?\n\n${oldRecord}`
+        : `${oldRecord ? "Pi-hole-DNS-Eintrag ändern" : "Pi-hole-DNS-Eintrag anlegen"}?\n\n${ip} ${names}`;
+      if (!window.confirm(question)) return;
+      const button = remove || save;
+      button.disabled = true;
+      try {
+        if (remove) {
+          await this._hass.callService("fritzsync_network", "pihole_delete_record", {
+            old_record: oldRecord,
+          });
+        } else if (oldRecord) {
+          await this._hass.callService("fritzsync_network", "pihole_update_record", {
+            old_record: oldRecord, ip, dns_names: names,
+          });
+        } else {
+          await this._hass.callService("fritzsync_network", "pihole_add_record", {
+            ip, dns_names: names,
+          });
+        }
+      } catch (error) {
+        window.alert(`Pi-hole-Änderung fehlgeschlagen: ${error && error.message ? error.message : error}`);
+      } finally {
+        button.disabled = false;
+      }
+    });
   }
 
   /**
@@ -1700,6 +1821,47 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-icon-blocked { color: var(--fbn-blocked); --mdc-icon-size: 18px; width: 18px; height: 18px; }
       .fbn-icon-update { color: var(--fbn-update); --mdc-icon-size: 18px; width: 18px; height: 18px; }
       .fbn-empty { padding: 16px; text-align: center; color: var(--fbn-inactive); }
+      .fbn-pihole {
+        margin: 12px 16px 8px; border: 1px solid var(--fbn-border);
+        border-radius: 10px; overflow: hidden;
+      }
+      .fbn-pihole[hidden] { display: none; }
+      .fbn-pihole summary {
+        display: flex; justify-content: space-between; align-items: center;
+        gap: 12px; padding: 10px 12px; cursor: pointer; font-weight: 600;
+        background: var(--fbn-header-bg); list-style: none;
+      }
+      .fbn-pihole summary::-webkit-details-marker { display: none; }
+      .fbn-pihole summary span:first-child { display: inline-flex; align-items: center; gap: 7px; }
+      .fbn-pihole summary ha-icon { --mdc-icon-size: 19px; color: var(--fbn-accent); }
+      .fbn-pihole-count { color: var(--fbn-header-text); font-size: 0.82em; font-weight: 400; }
+      .fbn-pihole-list { display: grid; }
+      .fbn-pihole-row {
+        display: grid; grid-template-columns: auto minmax(180px, 2fr) minmax(130px, 1fr) auto auto;
+        gap: 8px; align-items: center; padding: 7px 10px;
+        border-top: 1px solid var(--fbn-border);
+      }
+      .fbn-pihole-row input {
+        min-width: 0; border: 1px solid var(--fbn-border); border-radius: 6px;
+        padding: 7px 9px; background: var(--card-background-color);
+        color: var(--fbn-row-text); font: inherit;
+      }
+      .fbn-pihole-row input:focus { outline: 2px solid var(--fbn-accent); outline-offset: 0; }
+      .fbn-badge-manual { color: var(--warning-color, #ffb300); border-color: var(--warning-color, #ffb300); }
+      .fbn-icon-btn {
+        display: inline-flex; border: 1px solid var(--fbn-border); border-radius: 6px;
+        background: none; color: inherit; cursor: pointer; padding: 6px;
+      }
+      .fbn-icon-btn ha-icon { --mdc-icon-size: 18px; width: 18px; height: 18px; }
+      .fbn-pihole-delete { color: var(--fbn-blocked); }
+      .fbn-pihole-save { color: var(--fbn-accent); }
+      .fbn-pihole-actions { display: flex; justify-content: flex-end; padding: 10px; border-top: 1px solid var(--fbn-border); }
+      .fbn-pihole-empty { padding: 14px; text-align: center; color: var(--fbn-inactive); }
+      .fbn-pihole-error { margin: 10px; padding: 8px 10px; border-radius: 6px; color: var(--error-color, #db4437); background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); }
+      @media (max-width: 700px) {
+        .fbn-pihole-row { grid-template-columns: auto 1fr auto auto; }
+        .fbn-pihole-ip { grid-column: 2 / 5; grid-row: 2; }
+      }
       .fbn-clickable:focus-visible { outline: 2px solid var(--fbn-accent); outline-offset: -2px; }
       .fbn-th:focus { outline: none; }
       .fbn-th:focus-visible { outline: 2px solid var(--fbn-accent); outline-offset: -2px; }
@@ -1831,6 +1993,7 @@ const EDITOR_SCHEMA = [
       { name: "show_filter_new", selector: { boolean: {} } },
       { name: "show_filter_networks", selector: { boolean: {} } },
       { name: "show_refresh", selector: { boolean: {} } },
+      { name: "show_pihole_records", selector: { boolean: {} } },
       { name: "hide_inactive", selector: { boolean: {} } },
       { name: "compact", selector: { boolean: {} } },
       { name: "show_details_popup", selector: { boolean: {} } },
@@ -1911,6 +2074,7 @@ const EDITOR_LABELS = {
   show_filter_new: "Filter „Neu“ anzeigen",
   show_filter_networks: "Netzfilter „Heimnetz/Gast“ anzeigen",
   show_refresh: "Schaltfläche „Aktualisieren“ anzeigen",
+  show_pihole_records: "Manuelle Pi-hole-DNS-Einträge anzeigen",
   hide_inactive: "Nicht verbundene Geräte ausblenden",
   compact: "Kompakte Zeilen",
   show_details_popup: "Klick öffnet ein Detail-Popup",
