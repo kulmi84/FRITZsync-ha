@@ -50,11 +50,12 @@ from .const import (
     SERVICE_PIHOLE_UPDATE_RECORD,
     SERVICE_PIHOLE_DELETE_RECORD,
     SERVICE_PIHOLE_SYNC_ALL,
+    SERVICE_CLEANUP_STALE_HOSTS,
     URL_BASE,
     VERSION,
 )
 from .coordinator import FritzSyncNetworkCoordinator
-from .hosts import normalize_mac
+from .hosts import build_hosts, normalize_mac
 from .pihole import PiholeApiError, PiholeClient, fqdn
 from .fritzbox_web import FritzBoxWebClient, FritzBoxWebError
 
@@ -138,6 +139,7 @@ async def async_unload_entry(
             SERVICE_PIHOLE_UPDATE_RECORD,
             SERVICE_PIHOLE_DELETE_RECORD,
             SERVICE_PIHOLE_SYNC_ALL,
+            SERVICE_CLEANUP_STALE_HOSTS,
         ):
             hass.services.async_remove(DOMAIN, service)
     return unloaded
@@ -353,6 +355,8 @@ def _async_register_services(hass: HomeAssistant) -> None:
         domain = str(options.get(CONF_PIHOLE_DOMAIN, DEFAULT_PIHOLE_DOMAIN))
         desired: list[str] = []
         for host in (coordinator.data or {}).get("hosts", []):
+            if host.get("stale_ip_duplicate"):
+                continue
             ip = str(host.get("ip") or "").strip()
             name = str(host.get("name") or "").strip()
             if not ip or not name:
@@ -367,6 +371,35 @@ def _async_register_services(hass: HomeAssistant) -> None:
             )
         except (PiholeApiError, RequestException) as err:
             raise HomeAssistantError(f"Pi-hole-Gesamtabgleich fehlgeschlagen: {err}") from err
+        await coordinator.async_request_refresh()
+
+    async def _handle_cleanup_stale_hosts(call: ServiceCall) -> None:
+        coordinator = _first_coordinator()
+
+        def _cleanup() -> int:
+            # Direkt vor dem Loeschen neu einlesen. Ausschliesslich weiterhin
+            # inaktive Verlierer einer mehrfach belegten IP sind Kandidaten.
+            fresh = build_hosts(coordinator.fritz_hosts.get_hosts_attributes())
+            candidates = [
+                host for host in fresh
+                if host.get("stale_ip_duplicate") and not host.get("active")
+            ]
+            web = FritzBoxWebClient(
+                str(coordinator.entry.data[CONF_HOST]),
+                str(coordinator.entry.data[CONF_USERNAME]),
+                str(coordinator.entry.data[CONF_PASSWORD]),
+                bool(coordinator.entry.data.get(CONF_USE_TLS, DEFAULT_USE_TLS)),
+            )
+            for host in candidates:
+                web.delete_device(str(host["mac"]))
+            return len(candidates)
+
+        try:
+            await hass.async_add_executor_job(_cleanup)
+        except (FritzConnectionException, FritzBoxWebError, RequestException) as err:
+            raise HomeAssistantError(
+                f"Bereinigung der FRITZ!Box-Geräteliste fehlgeschlagen: {err}"
+            ) from err
         await coordinator.async_request_refresh()
 
     if not hass.services.has_service(DOMAIN, SERVICE_SET_DEVICE_NAME):
@@ -406,4 +439,8 @@ def _async_register_services(hass: HomeAssistant) -> None:
     if not hass.services.has_service(DOMAIN, SERVICE_PIHOLE_SYNC_ALL):
         hass.services.async_register(
             DOMAIN, SERVICE_PIHOLE_SYNC_ALL, _handle_pihole_sync_all
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_CLEANUP_STALE_HOSTS):
+        hass.services.async_register(
+            DOMAIN, SERVICE_CLEANUP_STALE_HOSTS, _handle_cleanup_stale_hosts
         )
