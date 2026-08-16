@@ -69,8 +69,10 @@ eingetragen. Es ist keine separate Installation der Karte nötig.
   (Heimnetz → Netzwerk → Netzwerkeinstellungen)
 - Ein FRITZ!Box-Benutzer mit der Berechtigung **„FRITZ!Box Einstellungen"**
 
-Getestet gegen die TR-064-Schnittstellendokumentation von AVM (Hosts-Service, Version 31
-vom 11.09.2025).
+Geräteidentität, IPv4-Adresse und sichtbarer Name stammen aus derselben WebUI-`netDev`-
+Zeile. TR-064 ergänzt nur Eigenschaften derselben exakten MAC-Adresse. So gelangen
+historische `PC-<MAC>`-Karteileichen und veraltete IP-/MAC-Zuordnungen nicht in die
+Geräteliste. Bei nicht verfügbarer WebUI bleibt ein bereinigter TR-064-Fallback aktiv.
 
 ---
 
