@@ -6,7 +6,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "fritzsync_network"
 MANUFACTURER: Final = "FRITZ!"
-VERSION: Final = "1.8.0"
+VERSION: Final = "1.8.1"
 
 PLATFORMS: Final = [Platform.SENSOR]
 
@@ -30,7 +30,7 @@ DEFAULT_SCAN_INTERVAL: Final = 60  # Sekunden
 DEFAULT_TRACK_ADDRESS_SOURCE: Final = True
 DEFAULT_ADDRESS_SOURCE_INTERVAL: Final = 15  # Minuten
 DEFAULT_PIHOLE_ENABLED: Final = False
-DEFAULT_PIHOLE_HOST: Final = "192.168.9.252"
+DEFAULT_PIHOLE_HOST: Final = "https://192.168.9.252"
 DEFAULT_PIHOLE_DOMAIN: Final = "fritz.box"
 
 MIN_SCAN_INTERVAL: Final = 15
