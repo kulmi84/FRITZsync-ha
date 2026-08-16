@@ -184,12 +184,13 @@ Sensor im Hintergrund neue Daten liefert.
 
 ### Pi-hole-DNS-Einträge
 
-Ist die Pi-hole-Synchronisierung in den Einstellungen aktiviert, erscheinen unter den
-FRITZ!Box-Geräten dauerhaft alle lokalen Pi-hole-DNS-Einträge innerhalb derselben Tabelle.
-DNS-Namen stehen dadurch unter `FRITZ!Box-Name`, Adressen unter `IP-Adresse`. Automatisch
-zugeordnete Zeilen tragen in der Spalte `Netz` den Wert `Pi-hole`, eigene Einträge den Wert
-`manuell`. Eigene Einträge – etwa für WireGuard-Geräte, virtuelle Maschinen oder externe
-Adressen – lassen sich direkt anlegen, bearbeiten und löschen.
+Ist die Pi-hole-Synchronisierung aktiviert, werden ausschließlich eigene lokale
+Pi-hole-DNS-Einträge direkt zwischen die FRITZ!Box-Geräte einsortiert. Damit greift die
+normale IP-Sortierung über beide Datenquellen hinweg. DNS-Namen stehen unter
+`FRITZ!Box-Name`, Adressen unter `IP-Adresse`; in der Spalte `Netz` steht `manuell`.
+Automatisch synchronisierte Pi-hole-Duplikate erscheinen nicht zusätzlich. Der Filter
+`Manuell` zeigt auf Wunsch nur diese DNS-Zeilen. Ein Klick auf eine solche Zeile blendet
+die Eingabefelder und Aktionen ein; bei einem API-Fehler bleibt sie geöffnet.
 
 Der Button **„Alle Geräte an Pi-hole übertragen“** legt auch für bereits bekannte und
 derzeit nicht verbundene FRITZ!Box-Geräte mit gespeicherter IP-Adresse einen lokalen
