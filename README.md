@@ -32,6 +32,9 @@ zurück.
    `FritzSync Network` suchen.
 5. Anschließend im Dashboard die Karte `FritzSync Network Topology` hinzufügen.
 
+Veröffentlichte Versionen erscheinen in HACS als Versionsnummer statt als
+gekürzter Commit-ID.
+
 ## Dashboard-YAML
 
 ```yaml
