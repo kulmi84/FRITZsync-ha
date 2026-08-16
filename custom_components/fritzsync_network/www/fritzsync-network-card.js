@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.8";
+const FBN_VERSION = "1.10.9";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -1205,7 +1205,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     container.textContent = parts.join(" · ") + filtered;
   }
 
-  _renderBody() {
+  _renderBody(force = false) {
     const body = this.querySelector(".fbn-body");
     const empty = this.querySelector(".fbn-empty");
     if (!body) return;
@@ -1221,7 +1221,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
 
     const activeElement = deepActiveElement();
-    if (activeElement && body.contains(activeElement)) return;
+    if (!force && activeElement && body.contains(activeElement)) return;
     const hosts = this._filteredHosts();
     if (empty) {
       empty.hidden = hosts.length > 0;
@@ -1407,7 +1407,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         this._piholeEditing = "";
         if (row.classList.contains("fbn-pihole-draft")) {
           this._piholeDraft = false;
-          this._renderBody();
+          this._renderBody(true);
         } else {
           row.outerHTML = this._renderPiholeRow({
             record: row.dataset.record,
@@ -1458,7 +1458,11 @@ class FritzSyncNetworkCard extends HTMLElement {
         this._piholeDraft = false;
         delete this._piholeEdits[oldRecord || "__draft__"];
         button.blur();
-        this._renderBody();
+        // Der normale Fokus-Schutz darf einen bewusst abgeschlossenen
+        // Schreibvorgang nicht blockieren. Der Service wartet bereits auf
+        // den anschliessenden Coordinator-Refresh, daher liegt jetzt der
+        // aktuelle Pi-hole-Stand vor.
+        this._renderBody(true);
       } catch (error) {
         this._piholeEditing = oldRecord;
         window.alert(`Pi-hole-Änderung fehlgeschlagen: ${error && error.message ? error.message : error}`);

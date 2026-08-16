@@ -4,7 +4,7 @@ Lokale Home-Assistant-Integration für FRITZ!Box-Netzwerkgeräte, Pi-hole-DNS un
 konfigurierbare Dashboard-Tabelle. Geräte lassen sich durchsuchen, filtern, umbenennen,
 aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
-![Version](https://img.shields.io/badge/Version-1.10.8-blue)
+![Version](https://img.shields.io/badge/Version-1.10.9-blue)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)
 ![FRITZ!OS](https://img.shields.io/badge/FRITZ!OS-8.x-E2001A)
