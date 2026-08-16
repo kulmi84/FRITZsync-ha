@@ -1,5 +1,5 @@
 /**
- * FritzSync Network - Dashboard-Karte
+ * FRITZ!Sync - Homeassistant - Dashboard-Karte
  * Teil der Integration fritzsync_network (kulmi84).
  *
  * Bewusste Entwurfsentscheidungen:
@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.6.0";
+const FBN_VERSION = "1.7.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -58,6 +58,7 @@ const CONFIG_DEFAULTS = {
   show_filter_update: true,
   show_filter_new: true,
   show_filter_networks: true,
+  show_refresh: true,
   hide_inactive: false,
   compact: false,
   max_rows: 0,
@@ -531,6 +532,9 @@ class FritzSyncNetworkCard extends HTMLElement {
         <div class="fbn-toolbar">
           <div class="fbn-filters"></div>
           <div class="fbn-tools">
+            <button class="fbn-chip fbn-refresh" type="button" title="Geräteliste jetzt aktualisieren">
+              <ha-icon icon="mdi:refresh"></ha-icon><span>Aktualisieren</span>
+            </button>
             <label class="fbn-exportwrap" title="Geräteliste für Excel exportieren">
               <ha-icon icon="mdi:microsoft-excel"></ha-icon>
               <select class="fbn-export" aria-label="Excel-Export">
@@ -568,6 +572,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._root.style.cssText = this._colorVars();
 
     this._buildFilters();
+    this._buildRefresh();
     this._buildExport();
     this._buildSearch();
     this._buildHead();
@@ -619,6 +624,25 @@ class FritzSyncNetworkCard extends HTMLElement {
         this._setFilter(button.dataset.filter);
       });
     }
+  }
+
+  _buildRefresh() {
+    const button = this.querySelector(".fbn-refresh");
+    if (!button) return;
+    button.hidden = !this._config.show_refresh;
+    button.addEventListener("click", async () => {
+      if (!this._hass || button.disabled) return;
+      button.disabled = true;
+      button.querySelector("ha-icon").setAttribute("icon", "mdi:loading");
+      try {
+        await this._hass.callService("homeassistant", "update_entity", {
+          entity_id: this._config.entity,
+        });
+      } finally {
+        button.disabled = false;
+        button.querySelector("ha-icon").setAttribute("icon", "mdi:refresh");
+      }
+    });
   }
 
   /* -- Waagerechtes Blättern (Smartphone) --------------------------- */
@@ -1806,6 +1830,7 @@ const EDITOR_SCHEMA = [
       { name: "show_filter_update", selector: { boolean: {} } },
       { name: "show_filter_new", selector: { boolean: {} } },
       { name: "show_filter_networks", selector: { boolean: {} } },
+      { name: "show_refresh", selector: { boolean: {} } },
       { name: "hide_inactive", selector: { boolean: {} } },
       { name: "compact", selector: { boolean: {} } },
       { name: "show_details_popup", selector: { boolean: {} } },
@@ -1885,6 +1910,7 @@ const EDITOR_LABELS = {
   show_filter_update: "Filter „Update“ anzeigen",
   show_filter_new: "Filter „Neu“ anzeigen",
   show_filter_networks: "Netzfilter „Heimnetz/Gast“ anzeigen",
+  show_refresh: "Schaltfläche „Aktualisieren“ anzeigen",
   hide_inactive: "Nicht verbundene Geräte ausblenden",
   compact: "Kompakte Zeilen",
   show_details_popup: "Klick öffnet ein Detail-Popup",
@@ -2216,7 +2242,7 @@ window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === "fritzsync-network-card")) {
   window.customCards.push({
     type: "fritzsync-network-card",
-    name: "FritzSync Network",
+    name: "FRITZ!Sync - Homeassistant",
     description: "Sortierbare Tabelle aller Geräte im FRITZ!Box-Heimnetz.",
     preview: false,
     documentationURL: "https://github.com/kulmi84/FRITZsync-ha",
