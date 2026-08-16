@@ -6,7 +6,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "fritzsync_network"
 MANUFACTURER: Final = "FRITZ!"
-VERSION: Final = "1.8.1"
+VERSION: Final = "1.9.0"
 
 PLATFORMS: Final = [Platform.SENSOR]
 
@@ -51,6 +51,7 @@ ATTR_ADDRESS_SOURCE_STATE: Final = "ip_typ_erfassung"
 ATTR_PIHOLE_RECORDS: Final = "pihole_manuelle_eintraege"
 ATTR_PIHOLE_ERROR: Final = "pihole_fehler"
 ATTR_PIHOLE_ENABLED: Final = "pihole_aktiv"
+ATTR_PIHOLE_ENTRIES: Final = "pihole_eintraege"
 
 # --- Dienste -------------------------------------------------------------
 SERVICE_SET_DEVICE_NAME: Final = "set_device_name"
@@ -60,6 +61,7 @@ SERVICE_ACKNOWLEDGE_DEVICE: Final = "acknowledge_device"
 SERVICE_PIHOLE_ADD_RECORD: Final = "pihole_add_record"
 SERVICE_PIHOLE_UPDATE_RECORD: Final = "pihole_update_record"
 SERVICE_PIHOLE_DELETE_RECORD: Final = "pihole_delete_record"
+SERVICE_PIHOLE_SYNC_ALL: Final = "pihole_sync_all"
 
 ATTR_MAC: Final = "mac"
 ATTR_NAME: Final = "name"
