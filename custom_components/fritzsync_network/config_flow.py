@@ -19,7 +19,7 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
-    OptionsFlowWithReload,
+    OptionsFlow,
 )
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
@@ -194,17 +194,41 @@ class FritzSyncNetworkConfigFlow(ConfigFlow, domain=DOMAIN):
         return FritzSyncNetworkOptionsFlow()
 
 
-class FritzSyncNetworkOptionsFlow(OptionsFlowWithReload):
+class FritzSyncNetworkOptionsFlow(OptionsFlow):
     """Einstellungen, die ohne Neuanlage geaendert werden koennen."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Zeigt und speichert die Optionen."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-
         options = self.config_entry.options
+        if user_input is not None:
+            submitted = dict(user_input)
+            submitted[CONF_PIHOLE_HOST] = str(
+                submitted.get(CONF_PIHOLE_HOST, DEFAULT_PIHOLE_HOST)
+            ).strip().rstrip("/")
+            submitted[CONF_PIHOLE_DOMAIN] = str(
+                submitted.get(CONF_PIHOLE_DOMAIN, DEFAULT_PIHOLE_DOMAIN)
+            ).strip().strip(".").lower()
+            password = str(submitted.get(CONF_PIHOLE_PASSWORD, ""))
+            if not password and options.get(CONF_PIHOLE_PASSWORD):
+                submitted[CONF_PIHOLE_PASSWORD] = options[CONF_PIHOLE_PASSWORD]
+                password = str(submitted[CONF_PIHOLE_PASSWORD])
+            if submitted.get(CONF_PIHOLE_ENABLED) and not password:
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self._options_schema(submitted),
+                    errors={CONF_PIHOLE_PASSWORD: "pihole_password_required"},
+                )
+            return self.async_create_entry(title="", data=submitted)
+
+        return self.async_show_form(
+            step_id="init", data_schema=self._options_schema(options)
+        )
+
+    @staticmethod
+    def _options_schema(options: Mapping[str, Any]) -> vol.Schema:
+        """Baut das Formular mit den vorhandenen oder eingegebenen Werten."""
         schema = vol.Schema(
             {
                 vol.Optional(
@@ -244,4 +268,4 @@ class FritzSyncNetworkOptionsFlow(OptionsFlowWithReload):
                 ): str,
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return schema

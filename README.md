@@ -373,6 +373,13 @@ Kartencodes im Testaufbau.
 
 ## Versionshistorie
 
+### 1.5.1 – Speichern der Pi-hole-Einstellungen
+
+- Verhindert einen doppelten Integrations-Reload beim Speichern der Optionen.
+- Pi-hole-Adresse und Domain werden vor dem Speichern normalisiert.
+- Ein fehlendes Pi-hole-Kennwort erzeugt eine verständliche Feldmeldung statt eines
+  allgemeinen Fehlers.
+
 ### 1.5.0 – Excel-Export
 
 - Neue Exportauswahl direkt in der Kartenleiste.

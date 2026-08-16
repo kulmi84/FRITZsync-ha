@@ -8,7 +8,8 @@
       "cannot_connect": "The FRITZ!Box cannot be reached at this address.",
       "invalid_auth": "Invalid username or password.",
       "insufficient_permissions": "The account has no access to the FRITZ!Box settings. Grant the \"FRITZ!Box Settings\" permission under System > FRITZ!Box Users.",
-      "no_hosts_service": "The FRITZ!Box does not expose the \"Hosts\" service. Enable \"Allow access for applications\" under Home Network > Network > Network Settings."
+      "no_hosts_service": "The FRITZ!Box does not expose the \"Hosts\" service. Enable \"Allow access for applications\" under Home Network > Network > Network Settings.",
+      "pihole_password_required": "Enter the Pi-hole password."
     },
     "step": {
       "user": {
@@ -35,6 +36,9 @@
     }
   },
   "options": {
+    "error": {
+      "pihole_password_required": "Enter the Pi-hole password."
+    },
     "step": {
       "init": {
         "title": "Settings",

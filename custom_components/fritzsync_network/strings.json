@@ -8,7 +8,8 @@
       "cannot_connect": "Die FRITZ!Box ist unter dieser Adresse nicht erreichbar.",
       "invalid_auth": "Benutzername oder Kennwort ist falsch.",
       "insufficient_permissions": "Das Konto hat keinen Zugriff auf die FRITZ!Box-Einstellungen. Setze in der FRITZ!Box unter System > FRITZ!Box-Benutzer die Berechtigung \"FRITZ!Box Einstellungen\".",
-      "no_hosts_service": "Die FRITZ!Box liefert den Dienst \"Hosts\" nicht aus. Aktiviere unter Heimnetz > Netzwerk > Netzwerkeinstellungen die Option \"Zugriff für Anwendungen zulassen\"."
+      "no_hosts_service": "Die FRITZ!Box liefert den Dienst \"Hosts\" nicht aus. Aktiviere unter Heimnetz > Netzwerk > Netzwerkeinstellungen die Option \"Zugriff für Anwendungen zulassen\".",
+      "pihole_password_required": "Bitte das Pi-hole-Kennwort eintragen."
     },
     "step": {
       "user": {
@@ -35,6 +36,9 @@
     }
   },
   "options": {
+    "error": {
+      "pihole_password_required": "Bitte das Pi-hole-Kennwort eintragen."
+    },
     "step": {
       "init": {
         "title": "Einstellungen",
