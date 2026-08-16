@@ -391,11 +391,22 @@ def build_hosts(
     werden verworfen - sie sind Karteileichen der FRITZ!Box und wuerden in
     der Karte nur eine leere Zeile erzeugen.
     """
-    hosts = [
-        normalize_host(raw)
-        for raw in raw_hosts or []
-        if normalize_mac(raw.get("MACAddress"))
-    ]
+    hosts = []
+    for raw in raw_hosts or []:
+        if not normalize_mac(raw.get("MACAddress")):
+            continue
+        host = normalize_host(raw)
+        # TR-064 kann veraltete, inaktive Platzhalter ohne IPv4 liefern. Diese
+        # duerfen weder als Geraet erscheinen noch durch Zusatzabfragen weiter
+        # verarbeitet werden. Echte benannte Offline-Geraete bleiben erhalten.
+        mac_name = f"PC-{host['mac'].replace(':', '-')}"
+        if (
+            not host["ip"]
+            and not host["active"]
+            and host["name"].casefold() == mac_name.casefold()
+        ):
+            continue
+        hosts.append(host)
     apply_address_sources(hosts, address_sources)
     apply_ha_devices(hosts, ha_devices)
     mark_stale_ip_duplicates(hosts)
