@@ -15,7 +15,7 @@ from fritzconnection.core.exceptions import (
 from fritzconnection.lib.fritzhosts import FritzHosts
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
@@ -31,7 +31,10 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TRACK_ADDRESS_SOURCE,
     DOMAIN,
+    CONF_USE_TLS,
+    DEFAULT_USE_TLS,
 )
+from .fritzbox_web import FritzBoxWebClient, fixed_ipv4_assignment
 from .hosts import apply_fritzsync_fields, build_hosts, mac_key, resolve_ptr_map, summarize
 
 _LOGGER = logging.getLogger(__name__)
@@ -132,6 +135,23 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "address_source": entry.get("NewAddressSource"),
                 "lease_time_remaining": entry.get("NewLeaseTimeRemaining"),
             }
+        # TR-064 meldet bei einer reservierten DHCP-Adresse weiterhin
+        # AddressSource=DHCP. Das Checkbox-Feld gibt es nur in der WebUI.
+        try:
+            web = FritzBoxWebClient(
+                str(self.entry.data[CONF_HOST]),
+                str(self.entry.data[CONF_USERNAME]),
+                str(self.entry.data[CONF_PASSWORD]),
+                bool(self.entry.data.get(CONF_USE_TLS, DEFAULT_USE_TLS)),
+            )
+            for summary in web.devices():
+                device = web.detail(summary)
+                key = mac_key(web._mac(device))
+                fixed = fixed_ipv4_assignment(device)
+                if key and fixed is not None:
+                    sources.setdefault(key, {})["static_ip"] = fixed
+        except Exception as err:  # WebUI ist eine optionale Zusatzquelle
+            _LOGGER.debug("Dauerhafte IPv4-Zuweisungen nicht abrufbar: %s", err)
         self._address_sources = sources
 
     def _fetch(self) -> tuple[list[dict[str, Any]], bool, bool]:
