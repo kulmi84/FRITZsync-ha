@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.9.3";
+const FBN_VERSION = "1.9.4";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -231,6 +231,18 @@ function ipSortKey(ip) {
   return value;
 }
 
+/** Prueft eine IPv4-Adresse gegen ein CIDR-Netz, auch ausserhalb von /24. */
+function ipv4InCidr(ip, cidr) {
+  const [network, prefixText] = String(cidr || "").split("/");
+  const ipValue = ipSortKey(ip);
+  const networkValue = ipSortKey(network);
+  const prefix = Number(prefixText);
+  if (ipValue === Number.MAX_SAFE_INTEGER || networkValue === Number.MAX_SAFE_INTEGER
+      || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) return false;
+  const blockSize = 2 ** (32 - prefix);
+  return Math.floor(ipValue / blockSize) === Math.floor(networkValue / blockSize);
+}
+
 /** "1000 Mbit/s" bzw. "—" bei unbekanntem Tempo. */
 function formatSpeed(speed) {
   const value = Number(speed) || 0;
@@ -417,14 +429,29 @@ class FritzSyncNetworkCard extends HTMLElement {
     if (!this._config.show_pihole_records || !attributes.pihole_aktiv) return [];
     const entries = Array.isArray(attributes.pihole_eintraege)
       ? attributes.pihole_eintraege : [];
-    return entries.filter((item) => !item.managed).map((item, index) => ({
+    const networks = Array.from(new Map(
+      this._hosts()
+        .filter((host) => host.network && host.network !== "manuell")
+        .map((host) => [host.network, host.zone || "Netz"])
+    ).entries()).sort((left, right) => {
+      const leftPrefix = Number(String(left[0]).split("/")[1]) || 0;
+      const rightPrefix = Number(String(right[0]).split("/")[1]) || 0;
+      return rightPrefix - leftPrefix;
+    });
+    return entries.filter((item) => !item.managed).map((item, index) => {
+      const matched = networks.find(([network]) => ipv4InCidr(item.ip, network));
+      const network = matched ? matched[0] : "manuell";
+      const zone = matched ? matched[1] : "manuell";
+      const guest = zone === "Gast" || zone === "Gast/anderes Netz";
+      return {
       _pihole: true,
       _record: item.record,
       _pihole_index: index,
       name: item.names,
       ip: item.ip,
-      network: "manuell",
-      zone: "manuell",
+      network,
+      zone,
+      guest,
       active: false,
       mac: "",
       connection: "unbekannt",
@@ -434,7 +461,8 @@ class FritzSyncNetworkCard extends HTMLElement {
       comment: "",
       ha_name: "",
       speed: 0,
-    }));
+      };
+    });
   }
 
   _listHosts() {
