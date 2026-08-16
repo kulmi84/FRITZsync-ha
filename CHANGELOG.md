@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.4
+
+- manuelle Pi-hole-Einträge anhand ihrer IPv4-Adresse einem erkannten CIDR-Netz zuordnen
+- Pi-hole-Einträge in den Filtern `Heimnetz` und `Gast` mit anzeigen
+- sichtbare Netzkennzeichnung der manuellen Einträge weiterhin als `manuell` belassen
+
 ## 1.9.3
 
 - manuelle Pi-hole-Zeilen mit blauem Statuspunkt und Pi-hole-Symbol anzeigen
