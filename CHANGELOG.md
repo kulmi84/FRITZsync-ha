@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.9
+
+- Tabellenkörper nach erfolgreichem Pi-hole-Speichern oder -Löschen bewusst neu aufbauen
+- Fokus-Schutz nur bei laufender Eingabe anwenden, nicht nach abgeschlossener Aktion
+- neuen DNS-Entwurf auch beim Abbrechen sofort aus der Tabelle entfernen
+
 ## 1.10.8
 
 - aktives DNS-Eingabefeld auch durch verschachtelte Home-Assistant-Shadow-Roots erkennen
