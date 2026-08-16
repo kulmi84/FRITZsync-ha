@@ -15,10 +15,12 @@ from fritzconnection.core.exceptions import (
 from fritzconnection.lib.fritzhosts import FritzHosts
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -30,7 +32,7 @@ from .const import (
     DEFAULT_TRACK_ADDRESS_SOURCE,
     DOMAIN,
 )
-from .hosts import build_hosts, mac_key, summarize
+from .hosts import apply_fritzsync_fields, build_hosts, mac_key, resolve_ptr_map, summarize
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +59,12 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._address_sources: dict[str, dict[str, Any]] = {}
         self._address_source_scan: datetime | None = None
         self._address_source_failed = False
+        self._ptr_records: dict[str, list[str]] = {}
+        self._ptr_scan: datetime | None = None
+        self._comments: dict[str, str] = {}
+        self._comment_store = Store(
+            hass, 1, f"{DOMAIN}.{entry.entry_id}.device_comments"
+        )
 
         super().__init__(
             hass,
@@ -95,6 +103,12 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return True
         return dt_util.utcnow() - self._address_source_scan >= self.address_source_interval
 
+    def _ptr_records_due(self) -> bool:
+        """Refresh PTR data on the same slow cadence as address-source data."""
+        if self._ptr_scan is None:
+            return True
+        return dt_util.utcnow() - self._ptr_scan >= self.address_source_interval
+
     def _fetch_address_sources(self, macs: list[str]) -> None:
         """Holt DHCP/statisch je Geraet (ein SOAP-Aufruf pro MAC-Adresse)."""
         sources: dict[str, dict[str, Any]] = {}
@@ -115,7 +129,7 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             }
         self._address_sources = sources
 
-    def _fetch(self) -> tuple[list[dict[str, Any]], bool]:
+    def _fetch(self) -> tuple[list[dict[str, Any]], bool, bool]:
         """Blockierender Teil des Abrufs, laeuft im Executor."""
         raw_hosts = self.fritz_hosts.get_hosts_attributes()
         refreshed = False
@@ -123,7 +137,15 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             macs = [str(host.get("MACAddress") or "") for host in raw_hosts]
             self._fetch_address_sources(macs)
             refreshed = True
-        return raw_hosts, refreshed
+        ptr_refreshed = False
+        if self._ptr_records_due():
+            ips = [str(host.get("IPAddress") or "") for host in raw_hosts]
+            dns_server = str(self.entry.data[CONF_HOST]).strip()
+            dns_server = dns_server.removeprefix("http://").removeprefix("https://")
+            dns_server = dns_server.split("/", 1)[0].split(":", 1)[0]
+            self._ptr_records = resolve_ptr_map(ips, dns_server)
+            ptr_refreshed = True
+        return raw_hosts, refreshed, ptr_refreshed
 
     def _ha_device_map(self) -> dict[str, dict[str, str]]:
         """Bildet MAC-Adressen auf Home-Assistant-Geraete ab.
@@ -155,7 +177,7 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Holt die Geraeteliste und reichert sie an."""
         try:
-            raw_hosts, refreshed = await self.hass.async_add_executor_job(self._fetch)
+            raw_hosts, refreshed, ptr_refreshed = await self.hass.async_add_executor_job(self._fetch)
         except (FritzSecurityError, FritzAuthorizationError) as err:
             raise ConfigEntryAuthFailed(
                 "Das FRITZ!Box-Konto hat keine ausreichenden Rechte. Benoetigt wird "
@@ -171,11 +193,19 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if refreshed:
             self._address_source_scan = dt_util.utcnow()
+        if ptr_refreshed:
+            self._ptr_scan = dt_util.utcnow()
 
         hosts = build_hosts(
             raw_hosts,
             self._address_sources if self.track_address_source else None,
             self._ha_device_map(),
+        )
+        apply_fritzsync_fields(
+            hosts,
+            self._ptr_records,
+            self._comments,
+            str(self.entry.data[CONF_HOST]),
         )
 
         return {
@@ -194,3 +224,25 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Erzwingt beim naechsten Durchlauf eine neue IP-Typ-Abfrage."""
         self._address_source_scan = None
 
+    async def async_load_comments(self) -> None:
+        """Load MAC-based device comments from Home Assistant storage."""
+        stored = await self._comment_store.async_load()
+        if isinstance(stored, dict):
+            self._comments = {
+                mac_key(key): str(value)[:250]
+                for key, value in stored.items()
+                if mac_key(key) and str(value).strip()
+            }
+
+    async def async_set_comment(self, mac: str, comment: str) -> None:
+        """Persist or remove a device comment and refresh the sensor."""
+        key = mac_key(mac)
+        if not key:
+            raise ValueError("Ungueltige MAC-Adresse")
+        value = str(comment).strip()[:250]
+        if value:
+            self._comments[key] = value
+        else:
+            self._comments.pop(key, None)
+        await self._comment_store.async_save(self._comments)
+        await self.async_request_refresh()

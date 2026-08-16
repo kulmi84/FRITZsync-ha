@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+- Spalten `Netz`, `PTR 1`, `PTR 2` und `Kommentar` aus dem separaten FRITZSync-Projekt übernommen
+- PTR-Namen werden direkt beim DNS-Server der FRITZ!Box abgefragt
+- Kommentare werden MAC-basiert in Home Assistant gespeichert
+- FRITZ!Box-Gerätename und Kommentar lassen sich im Detaildialog mit Bestätigung ändern
+
 ## 1.0.0
 
 - vollständiger Neuaufbau auf Basis der stabilen Integration `fritzbox_netzwerk`

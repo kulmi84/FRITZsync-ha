@@ -23,6 +23,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady,
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    ATTR_COMMENT,
     ATTR_MAC,
     ATTR_NAME,
     CARD_FILENAME,
@@ -32,6 +33,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
     SERVICE_SET_DEVICE_NAME,
+    SERVICE_SET_COMMENT,
     SERVICE_WAKE_ON_LAN,
     URL_BASE,
     VERSION,
@@ -47,6 +49,12 @@ MAC_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_MAC): cv.string,
         vol.Optional(ATTR_NAME): cv.string,
+    }
+)
+COMMENT_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_MAC): cv.string,
+        vol.Optional(ATTR_COMMENT, default=""): cv.string,
     }
 )
 
@@ -75,6 +83,7 @@ async def async_setup_entry(
         ) from err
 
     coordinator = FritzSyncNetworkCoordinator(hass, entry, fritz_hosts)
+    await coordinator.async_load_comments()
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
 
@@ -92,7 +101,7 @@ async def async_unload_entry(
     """Entlaedt einen Konfigurationseintrag."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded and not hass.config_entries.async_loaded_entries(DOMAIN):
-        for service in (SERVICE_SET_DEVICE_NAME, SERVICE_WAKE_ON_LAN):
+        for service in (SERVICE_SET_DEVICE_NAME, SERVICE_WAKE_ON_LAN, SERVICE_SET_COMMENT):
             hass.services.async_remove(DOMAIN, service)
     return unloaded
 
@@ -221,6 +230,12 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 f"Aufwecken von {mac} fehlgeschlagen: {err}"
             ) from err
 
+    async def _handle_set_comment(call: ServiceCall) -> None:
+        coordinator = _first_coordinator()
+        await coordinator.async_set_comment(
+            normalize_mac(call.data[ATTR_MAC]), call.data[ATTR_COMMENT]
+        )
+
     if not hass.services.has_service(DOMAIN, SERVICE_SET_DEVICE_NAME):
         hass.services.async_register(
             DOMAIN, SERVICE_SET_DEVICE_NAME, _handle_set_device_name, schema=MAC_SCHEMA
@@ -229,4 +244,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
         hass.services.async_register(
             DOMAIN, SERVICE_WAKE_ON_LAN, _handle_wake_on_lan, schema=MAC_SCHEMA
         )
-
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_COMMENT):
+        hass.services.async_register(
+            DOMAIN, SERVICE_SET_COMMENT, _handle_set_comment, schema=COMMENT_SCHEMA
+        )

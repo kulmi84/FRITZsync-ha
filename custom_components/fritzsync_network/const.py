@@ -6,7 +6,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "fritzsync_network"
 MANUFACTURER: Final = "FRITZ!"
-VERSION: Final = "1.0.0"
+VERSION: Final = "1.1.0"
 
 PLATFORMS: Final = [Platform.SENSOR]
 
@@ -45,9 +45,11 @@ ATTR_ADDRESS_SOURCE_STATE: Final = "ip_typ_erfassung"
 # --- Dienste -------------------------------------------------------------
 SERVICE_SET_DEVICE_NAME: Final = "set_device_name"
 SERVICE_WAKE_ON_LAN: Final = "wake_on_lan"
+SERVICE_SET_COMMENT: Final = "set_device_comment"
 
 ATTR_MAC: Final = "mac"
 ATTR_NAME: Final = "name"
+ATTR_COMMENT: Final = "comment"
 
 # --- Dashboard-Karte -----------------------------------------------------
 CARD_FILENAME: Final = "fritzsync-network-card.js"

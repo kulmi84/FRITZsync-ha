@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "custom_components" / "fritzsync_network"))
 
-from hosts import build_hosts, normalize_host, normalize_mac, summarize
+from hosts import apply_fritzsync_fields, build_hosts, normalize_host, normalize_mac, summarize
 
 
 class HostTests(unittest.TestCase):
@@ -35,6 +35,24 @@ class HostTests(unittest.TestCase):
         ])
         self.assertEqual([host["name"] for host in hosts], ["Nine", "Ten"])
         self.assertEqual(summarize(hosts)["active"], 1)
+
+    def test_fritzsync_network_ptr_and_comment_fields(self):
+        hosts = build_hosts([
+            {"HostName": "NAS", "IPAddress": "192.168.9.44", "MACAddress": "24:5E:BE:00:00:44"},
+            {"HostName": "Guest", "IPAddress": "192.168.10.5", "MACAddress": "24:5E:BE:00:00:05"},
+        ])
+        apply_fritzsync_fields(
+            hosts,
+            {"192.168.9.44": ["nas.fritz.box", "nas.local"]},
+            {"245ebe000044": "Vorratskeller"},
+            "192.168.9.1",
+        )
+        self.assertEqual(hosts[0]["zone"], "Heimnetz")
+        self.assertEqual(hosts[0]["network"], "192.168.9.0/24")
+        self.assertEqual(hosts[0]["ptr1"], "nas.fritz.box")
+        self.assertEqual(hosts[0]["ptr2"], "nas.local")
+        self.assertEqual(hosts[0]["comment"], "Vorratskeller")
+        self.assertEqual(hosts[1]["zone"], "Gast/anderes Netz")
 
 
 if __name__ == "__main__":

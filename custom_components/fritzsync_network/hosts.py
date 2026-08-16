@@ -21,6 +21,11 @@ ueberall ``.get()``.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import ipaddress
+import os
+import socket
+import struct
 from typing import Any
 
 TRUE_STRINGS = {"1", "true", "yes", "on", "granted"}
@@ -190,7 +195,143 @@ def normalize_host(raw: dict[str, Any]) -> dict[str, Any]:
         "ha_name": "",
         "ha_device_id": "",
         "ha_area": "",
+        # Von FritzSync uebernommene Zusatzfelder.
+        "network": "",
+        "zone": "",
+        "ptr1": "",
+        "ptr2": "",
+        "comment": "",
     }
+
+
+def _dns_read_name(packet: bytes, offset: int, depth: int = 0) -> tuple[str, int]:
+    """Read a possibly compressed DNS name from a response packet."""
+    if depth > 20:
+        raise ValueError("DNS compression recursion is too deep")
+    labels: list[str] = []
+    while offset < len(packet):
+        length = packet[offset]
+        if length == 0:
+            return ".".join(labels), offset + 1
+        if length & 0xC0 == 0xC0:
+            if offset + 1 >= len(packet):
+                raise ValueError("Incomplete DNS compression pointer")
+            pointer = ((length & 0x3F) << 8) | packet[offset + 1]
+            pointed, _ = _dns_read_name(packet, pointer, depth + 1)
+            if pointed:
+                labels.append(pointed)
+            return ".".join(labels), offset + 2
+        if length & 0xC0:
+            raise ValueError("Unknown DNS label format")
+        offset += 1
+        end = offset + length
+        if end > len(packet):
+            raise ValueError("Incomplete DNS label")
+        labels.append(packet[offset:end].decode("utf-8", errors="replace"))
+        offset = end
+    raise ValueError("Incomplete DNS name")
+
+
+def query_ptr_records(ip_text: str, dns_server: str, timeout: float = 1.2) -> list[str]:
+    """Query up to all PTR answers directly from the FRITZ!Box DNS server."""
+    try:
+        reverse_name = ipaddress.ip_address(ip_text).reverse_pointer
+    except ValueError:
+        return []
+    query_id = int.from_bytes(os.urandom(2), "big")
+    qname = b"".join(
+        bytes([len(part)]) + part.encode("ascii") for part in reverse_name.split(".")
+    ) + b"\x00"
+    query = (
+        struct.pack("!HHHHHH", query_id, 0x0100, 1, 0, 0, 0)
+        + qname
+        + struct.pack("!HH", 12, 1)
+    )
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(timeout)
+            sock.sendto(query, (dns_server, 53))
+            packet, _ = sock.recvfrom(4096)
+    except OSError:
+        return []
+    if len(packet) < 12:
+        return []
+    response_id, flags, qdcount, ancount, _, _ = struct.unpack("!HHHHHH", packet[:12])
+    if response_id != query_id or flags & 0x000F:
+        return []
+    offset = 12
+    try:
+        for _ in range(qdcount):
+            _, offset = _dns_read_name(packet, offset)
+            offset += 4
+        records: list[str] = []
+        for _ in range(ancount):
+            _, offset = _dns_read_name(packet, offset)
+            if offset + 10 > len(packet):
+                break
+            record_type, record_class, _ttl, data_length = struct.unpack(
+                "!HHIH", packet[offset : offset + 10]
+            )
+            offset += 10
+            data_offset = offset
+            offset += data_length
+            if record_type == 12 and record_class == 1:
+                value, _ = _dns_read_name(packet, data_offset)
+                value = value.rstrip(".")
+                if value and value.casefold() not in {item.casefold() for item in records}:
+                    records.append(value)
+        return records
+    except (ValueError, struct.error):
+        return []
+
+
+def resolve_ptr_map(ips: list[str], dns_server: str) -> dict[str, list[str]]:
+    """Resolve PTR records concurrently without blocking once per device."""
+    valid_ips = sorted({str(ip).strip() for ip in ips if str(ip).strip()})
+    if not valid_ips:
+        return {}
+    result: dict[str, list[str]] = {}
+    with ThreadPoolExecutor(max_workers=min(16, len(valid_ips))) as pool:
+        futures = {pool.submit(query_ptr_records, ip, dns_server): ip for ip in valid_ips}
+        for future in as_completed(futures):
+            ip = futures[future]
+            try:
+                result[ip] = future.result()
+            except Exception:
+                result[ip] = []
+    return result
+
+
+def apply_fritzsync_fields(
+    hosts: list[dict[str, Any]],
+    ptr_records: dict[str, list[str]] | None,
+    comments: dict[str, str] | None,
+    router_address: str,
+) -> list[dict[str, Any]]:
+    """Attach network, PTR and locally stored comment fields."""
+    try:
+        router_ip = ipaddress.ip_address(router_address)
+        primary_network = ipaddress.ip_network(f"{router_ip}/24", strict=False)
+    except ValueError:
+        primary_network = None
+    for host in hosts:
+        ip_text = str(host.get("ip") or "").strip()
+        try:
+            address = ipaddress.ip_address(ip_text)
+            network = ipaddress.ip_network(f"{address}/24", strict=False)
+            host["network"] = str(network)
+            host["zone"] = (
+                "Heimnetz" if primary_network is not None and address in primary_network
+                else "Gast/anderes Netz"
+            )
+        except ValueError:
+            host["network"] = ""
+            host["zone"] = ""
+        records = (ptr_records or {}).get(ip_text, [])
+        host["ptr1"] = records[0] if records else ""
+        host["ptr2"] = records[1] if len(records) > 1 else ""
+        host["comment"] = str((comments or {}).get(mac_key(host.get("mac")), ""))
+    return hosts
 
 
 def apply_address_sources(
@@ -269,4 +410,3 @@ def summarize(hosts: list[dict[str, Any]]) -> dict[str, int]:
         "updates": sum(1 for host in hosts if host["update_available"]),
         "static": sum(1 for host in hosts if host["static_ip"]),
     }
-

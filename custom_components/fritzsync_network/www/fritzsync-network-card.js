@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.0.0";
+const FBN_VERSION = "1.1.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -30,8 +30,12 @@ const CONFIG_DEFAULTS = {
   // Spalten
   show_status: true,
   show_name: true,
+  show_network: true,
   show_ip: true,
   show_mac: true,
+  show_ptr1: true,
+  show_ptr2: false,
+  show_comment: true,
   show_connection: true,
   show_ha_name: true,
   show_ip_type: true,
@@ -80,9 +84,13 @@ const CONFIG_DEFAULTS = {
  */
 const COLUMNS = [
   { key: "status", cfg: "show_status", label: "", short: "", prio: 1, sortable: true, align: "center" },
-  { key: "name", cfg: "show_name", label: "Gerät", prio: 1, sortable: true },
-  { key: "ip", cfg: "show_ip", label: "IP-Adresse", prio: 1, sortable: true },
+  { key: "name", cfg: "show_name", label: "FRITZ!Box-Name", prio: 1, sortable: true },
+  { key: "network", cfg: "show_network", label: "Netz", prio: 2, sortable: true },
   { key: "mac", cfg: "show_mac", label: "MAC-Adresse", prio: 3, sortable: true },
+  { key: "ptr2", cfg: "show_ptr2", label: "PTR 2", prio: 3, sortable: true },
+  { key: "ip", cfg: "show_ip", label: "IP-Adresse", prio: 1, sortable: true },
+  { key: "ptr1", cfg: "show_ptr1", label: "PTR 1", prio: 2, sortable: true },
+  { key: "comment", cfg: "show_comment", label: "Kommentar", prio: 2, sortable: true },
   { key: "connection", cfg: "show_connection", label: "Verbindung", prio: 2, sortable: true },
   { key: "ha_name", cfg: "show_ha_name", label: "Home Assistant", prio: 2, sortable: true },
   { key: "ip_type", cfg: "show_ip_type", label: "IP-Typ", prio: 3, sortable: true },
@@ -257,6 +265,11 @@ function sortValue(host, key) {
       return ipSortKey(host.ip);
     case "mac":
       return String(host.mac || "");
+    case "network":
+    case "ptr1":
+    case "ptr2":
+    case "comment":
+      return String(host[key] || "").toLowerCase();
     case "connection":
       return String(host.connection_label || "").toLowerCase();
     case "ha_name":
@@ -382,6 +395,10 @@ class FritzSyncNetworkCard extends HTMLElement {
           host.name,
           host.active ? 1 : 0,
           host.connection_label,
+          host.network,
+          host.ptr1,
+          host.ptr2,
+          host.comment,
           host.ha_name,
           host.static_ip,
           host.blocked ? 1 : 0,
@@ -426,7 +443,7 @@ class FritzSyncNetworkCard extends HTMLElement {
 
     if (search) {
       hosts = hosts.filter((host) =>
-        [host.name, host.ip, host.mac, host.ha_name, host.model, host.host_name]
+        [host.name, host.ip, host.mac, host.network, host.zone, host.ptr1, host.ptr2, host.comment, host.ha_name, host.model, host.host_name]
           .map((value) => String(value || "").toLowerCase())
           .some((value) => value.includes(search))
       );
@@ -856,6 +873,18 @@ class FritzSyncNetworkCard extends HTMLElement {
       case "mac":
         return `<span class="fbn-mono fbn-dim">${escapeHtml(host.mac || "—")}</span>`;
 
+      case "network":
+        return `<span>${escapeHtml(host.zone || "—")}</span><br><small class="fbn-mono fbn-dim">${escapeHtml(host.network || "")}</small>`;
+
+      case "ptr1":
+        return `<span class="fbn-mono fbn-dim">${escapeHtml(host.ptr1 || "—")}</span>`;
+
+      case "ptr2":
+        return `<span class="fbn-mono fbn-dim">${escapeHtml(host.ptr2 || "—")}</span>`;
+
+      case "comment":
+        return escapeHtml(host.comment || "—");
+
       case "connection":
         return escapeHtml(host.connection_label || "—");
 
@@ -1020,6 +1049,15 @@ class FritzSyncNetworkCard extends HTMLElement {
       wolButton.addEventListener("click", () => this._wakeDevice(host, wolButton));
     }
 
+    const renameButton = this._popup.querySelector(".fbn-act-rename");
+    if (renameButton) {
+      renameButton.addEventListener("click", () => this._renameDevice(host, renameButton));
+    }
+    const commentButton = this._popup.querySelector(".fbn-act-comment");
+    if (commentButton) {
+      commentButton.addEventListener("click", () => this._setComment(host, commentButton));
+    }
+
     // Schliessen in der Fusszeile.
     const footClose = this._popup.querySelector(".fbn-modal-close2");
     if (footClose) footClose.addEventListener("click", () => this._closePopup());
@@ -1046,8 +1084,13 @@ class FritzSyncNetworkCard extends HTMLElement {
     };
 
     add("Gerätename", escapeHtml(host.name));
+    add("Netz", escapeHtml(host.zone || ""));
+    add("Subnetz", escapeHtml(host.network || ""), { mono: true });
     add("IP-Adresse", escapeHtml(host.ip), { mono: true, copy: host.ip });
     add("MAC-Adresse", escapeHtml(host.mac), { mono: true, copy: host.mac });
+    add("PTR 1", escapeHtml(host.ptr1 || ""), { mono: true, copy: host.ptr1 });
+    add("PTR 2", escapeHtml(host.ptr2 || ""), { mono: true, copy: host.ptr2 });
+    add("Kommentar", escapeHtml(host.comment || ""));
     add("Verbindung", escapeHtml(host.connection_label));
     add(
       "Status",
@@ -1113,6 +1156,14 @@ class FritzSyncNetworkCard extends HTMLElement {
         '<button class="fbn-btn fbn-act-wol" type="button"><ha-icon icon="mdi:power"></ha-icon>Aufwecken (WoL)</button>'
       );
     }
+    if (this._hass) {
+      buttons.push(
+        '<button class="fbn-btn fbn-act-rename" type="button"><ha-icon icon="mdi:pencil"></ha-icon>Umbenennen</button>'
+      );
+      buttons.push(
+        '<button class="fbn-btn fbn-act-comment" type="button"><ha-icon icon="mdi:comment-edit-outline"></ha-icon>Kommentar</button>'
+      );
+    }
     buttons.push(
       '<button class="fbn-btn fbn-btn-primary fbn-modal-close2" type="button">Schließen</button>'
     );
@@ -1147,6 +1198,26 @@ class FritzSyncNetworkCard extends HTMLElement {
         label.disabled = false;
         label.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon>Fehlgeschlagen';
       });
+  }
+
+  _renameDevice(host, button) {
+    const name = prompt("Neuer Gerätename in der FRITZ!Box:", host.name || "");
+    if (!name || name === host.name) return;
+    if (!confirm(`„${host.name}“ wirklich in „${name}“ umbenennen?`)) return;
+    button.disabled = true;
+    this._hass.callService("fritzsync_network", "set_device_name", { mac: host.mac, name })
+      .then(() => { button.innerHTML = '<ha-icon icon="mdi:check"></ha-icon>Umbenannt'; })
+      .catch(() => { button.disabled = false; button.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon>Fehlgeschlagen'; });
+  }
+
+  _setComment(host, button) {
+    const comment = prompt("Kommentar für dieses Gerät:", host.comment || "");
+    if (comment === null || comment === host.comment) return;
+    if (!confirm("Kommentar wirklich speichern?")) return;
+    button.disabled = true;
+    this._hass.callService("fritzsync_network", "set_device_comment", { mac: host.mac, comment })
+      .then(() => { button.innerHTML = '<ha-icon icon="mdi:check"></ha-icon>Gespeichert'; })
+      .catch(() => { button.disabled = false; button.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon>Fehlgeschlagen'; });
   }
 
   /** Schliesst das Popup und raeumt Listener und Fokus auf. */
@@ -1488,8 +1559,12 @@ const EDITOR_LABELS = {
   title: "Titel",
   show_status: "Status",
   show_name: "Gerät",
+  show_network: "Netz / Subnetz",
   show_ip: "IP-Adresse",
   show_mac: "MAC-Adresse",
+  show_ptr1: "PTR 1",
+  show_ptr2: "PTR 2",
+  show_comment: "Kommentar",
   show_connection: "Verbindung",
   show_ha_name: "Home-Assistant-Gerätename",
   show_ip_type: "IP-Typ (DHCP oder statisch)",
@@ -1515,6 +1590,10 @@ const EDITOR_LABELS = {
 };
 
 const EDITOR_HELPERS = {
+  show_network: "Zeigt Heimnetz bzw. Gast/anderes Netz und das berechnete /24-Subnetz.",
+  show_ptr1: "Erste PTR-Antwort aus einer direkten DNS-Abfrage an die FRITZ!Box.",
+  show_ptr2: "Zweite PTR-Antwort, sofern die FRITZ!Box mehrere Namen meldet.",
+  show_comment: "MAC-basierter Kommentar, lokal in Home Assistant gespeichert.",
   show_ip_type: "Braucht die eingeschaltete IP-Typ-Erfassung in den Einstellungen der Integration.",
   show_ha_name: "Zeigt den Gerätenamen aus Home Assistant, sofern das Gerät dort eine MAC-Adresse hinterlegt hat.",
   show_details_popup: "Zeigt beim Antippen alle Felder eines Geräts, auch die auf schmalen Karten ausgeblendeten wie die MAC-Adresse.",

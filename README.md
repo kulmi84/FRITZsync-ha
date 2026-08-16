@@ -149,9 +149,13 @@ grafischen Editor einstellen.
 | Spalte | Standard | Quelle |
 | --- | --- | --- |
 | Status | an | `Active` – farbiger Punkt |
-| Gerät | an | Name aus der FRITZ!Box, samt Abzeichen für Gast, VPN und Priorität |
+| FRITZ!Box-Name | an | Name aus der FRITZ!Box, samt Abzeichen für Gast, VPN und Priorität |
+| Netz | an | Heimnetz bzw. Gast/anderes Netz und berechnetes `/24`-Subnetz |
 | IP-Adresse | an | `IPAddress` |
 | MAC-Adresse | an | `MACAddress` |
+| PTR 1 | an | Erste PTR-Antwort des DNS-Servers der FRITZ!Box |
+| PTR 2 | aus | Zweite PTR-Antwort, sofern vorhanden |
+| Kommentar | an | Lokal in Home Assistant gespeicherter, MAC-basierter Kommentar |
 | Verbindung | an | `InterfaceType` + Portnummer, z. B. „LAN 2" oder „WLAN (Gast)" |
 | Home Assistant | an | Gerätename aus der Geräteregistrierung |
 | IP-Typ | an | DHCP oder statisch, mit Lease-Restzeit |
@@ -417,4 +421,3 @@ Kartencodes im Testaufbau.
 ## Lizenz
 
 MIT
-
