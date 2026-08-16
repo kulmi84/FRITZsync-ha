@@ -9,6 +9,8 @@
 - manuelle Spaltenbreiten weiterhin pro Karte im Browser speichern
 - den Entwurf eines neuen Pi-hole-DNS-Eintrags auch bei Sensoraktualisierungen geöffnet halten
 - vor der DNS-Neuanlage verständlich auf notwendige Namens- und IP-Spalten hinweisen
+- beim Aktualisieren-Button PTR 1/2 und IP-Typ unabhängig vom langsamen Intervall neu abfragen
+- PTR 1/2 nach einer Geräteumbenennung sofort neu ermitteln
 - bei Router-Datensätzen die private LAN-Adresse gegenüber einer verschachtelten öffentlichen WAN-Adresse bevorzugen
 - dadurch irrtümliche Netzfilter wie `Gast: 185.22.44.0/24` verhindern
 
