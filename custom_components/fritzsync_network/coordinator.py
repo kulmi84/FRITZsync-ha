@@ -287,11 +287,12 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     managed.add(f"{host['ip']} {fqdn(str(host['name']), domain)}")
             except PiholeApiError:
                 continue
-        pihole_manual = [
-            split_record(record)
-            for record in self._pihole_records
-            if record.lower() not in managed
-        ]
+        pihole_entries = []
+        for record in self._pihole_records:
+            item = split_record(record)
+            item["managed"] = record.lower() in managed
+            pihole_entries.append(item)
+        pihole_manual = [item for item in pihole_entries if not item["managed"]]
 
         return {
             "hosts": hosts,
@@ -304,6 +305,7 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
             "track_address_source": self.track_address_source,
             "pihole_records": pihole_manual,
+            "pihole_entries": pihole_entries,
             "pihole_error": self._pihole_error,
             "pihole_enabled": bool(
                 self.entry.options.get(CONF_PIHOLE_ENABLED, False)
