@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.15
+
+- die in 1.10.14 eingeführte Änderung fremder Hostdatensätze derselben früheren IP vollständig zurücknehmen
+- beim Umbenennen wieder ausschließlich die ausdrücklich ausgewählte MAC-Adresse ändern
+- dokumentieren, dass FRITZ!OS den schreibgeschützten historischen Wert „Erstverbindung ins Heimnetz als“ als zusätzliche PTR-Antwort liefern kann
+- diesen historischen Wert nicht fälschlich als weiteren veränderbaren Gerätenamen behandeln
+
 ## 1.10.14
 
 - beim bestätigten Umbenennen alle FRITZ!Box-Hostdatensätze derselben IP ermitteln
