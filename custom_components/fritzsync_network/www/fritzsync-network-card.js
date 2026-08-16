@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.4.0";
+const FBN_VERSION = "1.5.0";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -508,7 +508,17 @@ class FritzSyncNetworkCard extends HTMLElement {
     }">
         <div class="fbn-toolbar">
           <div class="fbn-filters"></div>
-          <div class="fbn-searchwrap"></div>
+          <div class="fbn-tools">
+            <label class="fbn-exportwrap" title="Geräteliste für Excel exportieren">
+              <ha-icon icon="mdi:microsoft-excel"></ha-icon>
+              <select class="fbn-export" aria-label="Excel-Export">
+                <option value="">Excel-Export</option>
+                <option value="filtered">Aktuelle Ansicht</option>
+                <option value="all">Alle Geräte</option>
+              </select>
+            </label>
+            <div class="fbn-searchwrap"></div>
+          </div>
         </div>
         <div class="fbn-summary"></div>
         <div class="fbn-scrollwrap">
@@ -536,6 +546,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._root.style.cssText = this._colorVars();
 
     this._buildFilters();
+    this._buildExport();
     this._buildSearch();
     this._buildHead();
     this._renderHead();
@@ -682,6 +693,163 @@ class FritzSyncNetworkCard extends HTMLElement {
       this._renderSummary();
       this._renderBody();
     });
+  }
+
+  _buildExport() {
+    const select = this.querySelector(".fbn-export");
+    if (!select || select.dataset.bound) return;
+    select.dataset.bound = "1";
+    select.addEventListener("change", () => {
+      const scope = select.value;
+      select.value = "";
+      if (scope) this._exportXlsx(scope);
+    });
+  }
+
+  /** Exportiert eine echte XLSX-Arbeitsmappe mit formatierter Excel-Tabelle. */
+  _exportXlsx(scope) {
+    const hosts = scope === "filtered"
+      ? this._filteredHosts()
+      : this._hosts().slice().sort((a, b) => ipSortKey(a.ip) - ipSortKey(b.ip));
+    const headers = [
+      "Status", "Neu", "FRITZ!Box-Name", "Netz", "Subnetz", "MAC-Adresse",
+      "IP-Adresse", "PTR 1", "PTR 2", "Kommentar", "Verbindung",
+      "Home Assistant", "IP-Typ", "Internetzugang", "Update", "Tempo",
+      "Modell", "Gerätetyp"
+    ];
+    const networkLabel = (host) => {
+      const guest = host.guest || host.zone === "Gast" || host.zone === "Gast/anderes Netz";
+      if (guest) return host.connection === "wlan" ? "Gast WLAN" : "Gast LAN";
+      return host.connection === "wlan" ? "WLAN" : "LAN";
+    };
+    const rows = hosts.map((host) => [
+      host.active ? "aktiv" : "inaktiv",
+      host.is_new ? "ja" : "nein",
+      host.name || "",
+      networkLabel(host),
+      host.network || "",
+      host.mac || "",
+      host.ip || "",
+      host.ptr1 || "",
+      host.ptr2 || "",
+      host.comment || "",
+      host.connection_label || "",
+      host.ha_name || "",
+      host.static_ip === true ? "statisch" : host.static_ip === false ? "DHCP" : "",
+      host.blocked ? "gesperrt" : "erlaubt",
+      host.update_available ? "verfügbar" : "",
+      host.active ? formatSpeed(host.speed) : "",
+      host.model || "",
+      host.device_class_user || host.device_class || "",
+    ]);
+
+    // XLSX ist ein ZIP-Container aus XML-Dateien. Die kleine lokale
+    // Implementierung vermeidet externe Skripte/CDNs und funktioniert auch,
+    // wenn Home Assistant keinen Internetzugang hat.
+    const encoder = new TextEncoder();
+    const xmlEscape = (value) => String(value ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+    const colName = (index) => {
+      let value = index + 1;
+      let name = "";
+      while (value) {
+        value -= 1;
+        name = String.fromCharCode(65 + (value % 26)) + name;
+        value = Math.floor(value / 26);
+      }
+      return name;
+    };
+    const sheetRows = [headers, ...(rows.length ? rows : [headers.map(() => "")])];
+    const sheetXmlRows = sheetRows.map((row, rowIndex) => {
+      const cells = row.map((value, colIndex) => {
+        // inlineStr speichert alle Werte als Text und verhindert damit auch
+        // Formel-Injection durch Gerätenamen, die mit =, +, - oder @ beginnen.
+        const ref = `${colName(colIndex)}${rowIndex + 1}`;
+        const style = rowIndex === 0 ? ' s="1"' : "";
+        return `<c r="${ref}" t="inlineStr"${style}><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+      }).join("");
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    }).join("");
+    const lastColumn = colName(headers.length - 1);
+    const lastRow = sheetRows.length;
+    const tableRef = `A1:${lastColumn}${lastRow}`;
+    const columns = headers.map((header, index) =>
+      `<tableColumn id="${index + 1}" name="${xmlEscape(header)}"/>`
+    ).join("");
+    const widths = [10, 8, 25, 14, 19, 20, 16, 28, 28, 24, 18, 24, 12, 15, 12, 14, 22, 22];
+    const colWidths = widths.map((width, index) =>
+      `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`
+    ).join("");
+
+    const files = {
+      "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/tables/table1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/></Types>`,
+      "_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+      "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Netzwerkgeräte" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+      "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`,
+      "xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colWidths}</cols><sheetData>${sheetXmlRows}</sheetData><autoFilter ref="${tableRef}"/><tableParts count="1"><tablePart r:id="rId1"/></tableParts></worksheet>`,
+      "xl/worksheets/_rels/sheet1.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/></Relationships>`,
+      "xl/tables/table1.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="FritzSyncNetzwerk" displayName="FritzSyncNetzwerk" ref="${tableRef}" totalsRowShown="0"><autoFilter ref="${tableRef}"/><tableColumns count="${headers.length}">${columns}</tableColumns><tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/></table>`,
+    };
+
+    const crcTable = new Uint32Array(256);
+    for (let n = 0; n < 256; n += 1) {
+      let c = n;
+      for (let k = 0; k < 8; k += 1) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      crcTable[n] = c >>> 0;
+    }
+    const crc32 = (bytes) => {
+      let crc = 0xFFFFFFFF;
+      for (const byte of bytes) crc = crcTable[(crc ^ byte) & 0xFF] ^ (crc >>> 8);
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    };
+    const u16 = (view, offset, value) => view.setUint16(offset, value, true);
+    const u32 = (view, offset, value) => view.setUint32(offset, value >>> 0, true);
+    const chunks = [];
+    const central = [];
+    let offset = 0;
+    for (const [name, content] of Object.entries(files)) {
+      const nameBytes = encoder.encode(name);
+      const data = encoder.encode(content);
+      const crc = crc32(data);
+      const local = new Uint8Array(30 + nameBytes.length + data.length);
+      const lv = new DataView(local.buffer);
+      u32(lv, 0, 0x04034B50); u16(lv, 4, 20); u16(lv, 6, 0x0800);
+      u16(lv, 8, 0); u16(lv, 10, 0); u16(lv, 12, 0); u32(lv, 14, crc);
+      u32(lv, 18, data.length); u32(lv, 22, data.length); u16(lv, 26, nameBytes.length); u16(lv, 28, 0);
+      local.set(nameBytes, 30); local.set(data, 30 + nameBytes.length);
+      chunks.push(local);
+
+      const entry = new Uint8Array(46 + nameBytes.length);
+      const ev = new DataView(entry.buffer);
+      u32(ev, 0, 0x02014B50); u16(ev, 4, 20); u16(ev, 6, 20); u16(ev, 8, 0x0800);
+      u16(ev, 10, 0); u16(ev, 12, 0); u16(ev, 14, 0); u32(ev, 16, crc);
+      u32(ev, 20, data.length); u32(ev, 24, data.length); u16(ev, 28, nameBytes.length);
+      u16(ev, 30, 0); u16(ev, 32, 0); u16(ev, 34, 0); u16(ev, 36, 0); u32(ev, 38, 0); u32(ev, 42, offset);
+      entry.set(nameBytes, 46); central.push(entry);
+      offset += local.length;
+    }
+    const centralOffset = offset;
+    const centralSize = central.reduce((sum, item) => sum + item.length, 0);
+    const end = new Uint8Array(22);
+    const endView = new DataView(end.buffer);
+    u32(endView, 0, 0x06054B50); u16(endView, 4, 0); u16(endView, 6, 0);
+    u16(endView, 8, central.length); u16(endView, 10, central.length);
+    u32(endView, 12, centralSize); u32(endView, 16, centralOffset); u16(endView, 20, 0);
+
+    const blob = new Blob([...chunks, ...central, end], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `fritzsync-netzwerk-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   /**
@@ -1356,6 +1524,14 @@ class FritzSyncNetworkCard extends HTMLElement {
         justify-content: space-between; padding: 8px 16px 4px;
       }
       .fbn-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+      .fbn-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
+      .fbn-exportwrap {
+        display: inline-flex; align-items: center; gap: 5px;
+        border: 1px solid var(--fbn-border); border-radius: 16px; padding: 3px 8px;
+      }
+      .fbn-exportwrap ha-icon { --mdc-icon-size: 17px; width: 17px; height: 17px; color: #43a047; }
+      .fbn-export { border: none; background: transparent; color: inherit; font: inherit; font-size: 0.85em; outline: none; cursor: pointer; }
+      .fbn-export option { color: var(--primary-text-color); background: var(--card-background-color); }
       .fbn-chip {
         display: inline-flex; align-items: center; gap: 4px;
         border: 1px solid var(--fbn-border); border-radius: 16px;

@@ -373,6 +373,16 @@ Kartencodes im Testaufbau.
 
 ## Versionshistorie
 
+### 1.5.0 – Excel-Export
+
+- Neue Exportauswahl direkt in der Kartenleiste.
+- Exportiert wahlweise alle Geräte oder exakt die aktuell gefilterte Ansicht.
+- Echte `.xlsx`-Arbeitsmappe mit formatierter Excel-Tabelle, fixierter Kopfzeile,
+  Autofilter und passenden Spaltenbreiten.
+- Enthält sämtliche wichtigen FRITZ!Box-, Netzwerk-, Pi-hole/PTR- und
+  Home-Assistant-Spalten.
+- Schutz vor einer unbeabsichtigten Ausführung von Gerätenamen als Excel-Formeln.
+
 ### 1.4.0 – Pi-hole-DNS beim Umbenennen
 
 - Optionale Anbindung an die authentifizierte Pi-hole-v6-API.
