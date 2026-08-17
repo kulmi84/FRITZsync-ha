@@ -771,7 +771,12 @@ class FritzSyncNetworkCard extends HTMLElement {
   _filterCount(key) {
     const hosts = this._listHosts();
     if (ACTIVITY_FILTERS.some((filter) => filter.key === key)) {
-      return this._applyActivityFilter(this._applyPrimaryFilter(hosts, this._filter), key).length;
+      const activityHosts = this._filter === "manuell"
+        ? this._manualPiholeHosts(true)
+        : hosts;
+      return this._applyActivityFilter(
+        this._applyPrimaryFilter(activityHosts, this._filter), key
+      ).length;
     }
     if (key === "manuell") return this._manualPiholeHosts(true).length;
     return this._applyPrimaryFilter(hosts, key).length;
