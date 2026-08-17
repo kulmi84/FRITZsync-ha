@@ -37,9 +37,10 @@ jobs:
         shell: bash
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists."
+            gh release edit "$TAG" --draft=false --prerelease=false --latest
+            echo "Release $TAG exists and is now published as Latest."
             exit 0
           fi
           git tag "$TAG"
           git push origin "$TAG"
-          gh release create "$TAG" --title "FritzSync Network $VERSION" --generate-notes
+          gh release create "$TAG" --title "FritzSync Network $VERSION" --generate-notes --latest
