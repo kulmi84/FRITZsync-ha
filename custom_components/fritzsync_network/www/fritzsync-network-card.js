@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.25";
+const FBN_VERSION = "1.10.27";
 
 // Ueberlebt neu erzeugte Karteninstanzen innerhalb derselben geladenen
 // Lovelace-Seite, selbst wenn localStorage im WebView nicht funktioniert.
@@ -466,15 +466,22 @@ class FritzSyncNetworkCard extends HTMLElement {
       const key = this._filterStorageKey();
       const saved = FILTER_MEMORY.get(key) ||
         JSON.parse(localStorage.getItem(key) || "null");
-      if (!saved || saved.default_filter !== this._config.default_filter) {
-        this._saveFilters();
-        return;
+      // Der in der Kartenkonfiguration hinterlegte Standard ist beim
+      // Erzeugen/Neuladen der Karte verbindlich. Ein zuvor angeklickter
+      // Laufzeitfilter darf ihn nicht wieder ueberschreiben. Nur der
+      // unabhaengige Netzfilter kann innerhalb derselben Konfiguration
+      // wiederhergestellt werden.
+      if (saved && saved.default_filter === this._config.default_filter) {
+        this._networkFilter = typeof saved.network === "string" ? saved.network : "";
+      } else {
+        FILTER_MEMORY.delete(key);
+        localStorage.removeItem(key);
       }
-      if (FILTERS.some((filter) => filter.key === saved.filter)) this._filter = saved.filter;
-      this._networkFilter = typeof saved.network === "string" ? saved.network : "";
+      this._saveFilters();
     } catch (_error) {
       this._resetDefaultFilter();
       this._networkFilter = "";
+      this._saveFilters();
     }
   }
 
@@ -2616,8 +2623,10 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
       this.querySelector(".fbn-form").appendChild(this._form);
 
       this._defaultFilterSelect = this.querySelector(".fbn-default-filter-select");
-      this._defaultFilterSelect.addEventListener("change", () => {
+      const saveDefaultFilter = () => {
         const defaultFilter = this._defaultFilterSelect.value;
+        if (!FILTERS.some((filter) => filter.key === defaultFilter)) return;
+        if (this._config.default_filter === defaultFilter) return;
         const entity = this._config.entity || "";
         const storageKey = `fritzsync-filters:${entity}`;
         FILTER_MEMORY.delete(storageKey);
@@ -2628,7 +2637,11 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
         }
         this._config = withDefaults({ ...this._config, default_filter: defaultFilter });
         this._fire(this._config);
-      });
+      };
+      // Home-Assistant-Apps/WebViews melden die Auswahl je nach Plattform
+      // bereits ueber "input". "change" bleibt als Browser-Fallback aktiv.
+      this._defaultFilterSelect.addEventListener("input", saveDefaultFilter);
+      this._defaultFilterSelect.addEventListener("change", saveDefaultFilter);
 
       this.querySelector(".fbn-reset").addEventListener("click", () => {
         // Der Fokusschutz wird hier bewusst uebergangen: ein Klick auf
@@ -2791,6 +2804,11 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
         width: 100%; min-height: 48px; padding: 0 12px;
         color: var(--primary-text-color); background: var(--card-background-color);
         border: 1px solid var(--divider-color); border-radius: 4px; font: inherit;
+        color-scheme: dark light;
+      }
+      .fbn-default-filter-field select option {
+        color: var(--primary-text-color);
+        background: var(--card-background-color);
       }
       .fbn-default-filter-field small { color: var(--secondary-text-color); line-height: 1.35; }
       .fbn-order-editor, .fbn-color-editor {
