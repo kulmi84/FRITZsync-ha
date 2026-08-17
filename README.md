@@ -217,9 +217,10 @@ Sensor im Hintergrund neue Daten liefert.
 Die Filterchips lassen sich im Karteneditor einzeln ein- oder ausblenden. Statusfilter
 und Netzfilter sind kombinierbar, beispielsweise `Aktiv` zusammen mit dem Gastnetz.
 Der beim Öffnen beziehungsweise Neuladen vorausgewählte Statusfilter lässt sich dort
-ebenfalls festlegen. Er wird beim Zurückkehren in die Dashboard-Ansicht erneut angewendet,
-sobald die Karte tatsächlich sichtbar wird. Ein leer gelassener Titel blendet den
-Kartenkopf vollständig aus.
+ebenfalls festlegen. Nach einer eigenen Auswahl merkt sich die Karte den zuletzt verwendeten
+Status- und Netzfilter im Browser und stellt beide beim nächsten Öffnen wieder her. Wird der
+konfigurierte Standardfilter geändert, ersetzt er die vorher gespeicherte Auswahl. Ein leer
+gelassener Titel blendet den Kartenkopf vollständig aus.
 Neue Geräte besitzen einen eigenen Filter und bleiben markiert, bis sie bestätigt wurden.
 Jeder Filterchip zeigt die Anzahl seiner Treffer in Klammern. Sind unbestätigte Geräte
 vorhanden, wird der Chip `Neu` zusätzlich gelb hervorgehoben.
