@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.33";
+const FBN_VERSION = "1.10.34";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -583,7 +583,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     return Array.isArray(hosts) ? hosts : [];
   }
 
-  _manualPiholeHosts() {
+  _manualPiholeHosts(includeManaged = false) {
     const state = this._stateObj();
     const attributes = (state && state.attributes) || {};
     if (!this._config.show_pihole_records || !attributes.pihole_aktiv) return [];
@@ -605,13 +605,14 @@ class FritzSyncNetworkCard extends HTMLElement {
       const rightPrefix = Number(String(right[0]).split("/")[1]) || 0;
       return rightPrefix - leftPrefix;
     });
-    return entries.filter((item) => !item.managed).map((item, index) => {
+    return entries.filter((item) => includeManaged || !item.managed).map((item, index) => {
       const matched = networks.find(([network]) => ipv4InCidr(item.ip, network));
       const network = matched ? matched[0] : "manuell";
       const zone = matched ? matched[1] : "manuell";
       const guest = zone === "Gast" || zone === "Gast/anderes Netz";
       return {
       _pihole: true,
+      _managed: !!item.managed,
       _record: item.record,
       _pihole_index: index,
       name: item.names,
@@ -730,14 +731,16 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   _applyActivityFilter(hosts, activity = this._activityFilter) {
-    if (activity === "aktiv") return hosts.filter((host) => !host._pihole && host.active);
+    if (activity === "aktiv") return hosts.filter((host) => host._pihole || host.active);
     if (activity === "inaktiv") return hosts.filter((host) => !host._pihole && !host.active);
     return hosts;
   }
 
   _filteredHosts() {
     const search = this._search.trim().toLowerCase();
-    let hosts = this._listHosts();
+    let hosts = this._filter === "manuell"
+      ? this._manualPiholeHosts(true)
+      : this._listHosts();
 
     hosts = this._applyPrimaryFilter(hosts, this._filter);
     hosts = this._applyActivityFilter(hosts);
@@ -768,8 +771,14 @@ class FritzSyncNetworkCard extends HTMLElement {
   _filterCount(key) {
     const hosts = this._listHosts();
     if (ACTIVITY_FILTERS.some((filter) => filter.key === key)) {
-      return this._applyActivityFilter(this._applyPrimaryFilter(hosts, this._filter), key).length;
+      const activityHosts = this._filter === "manuell"
+        ? this._manualPiholeHosts(true)
+        : hosts;
+      return this._applyActivityFilter(
+        this._applyPrimaryFilter(activityHosts, this._filter), key
+      ).length;
     }
+    if (key === "manuell") return this._manualPiholeHosts(true).length;
     return this._applyPrimaryFilter(hosts, key).length;
   }
 
@@ -1343,7 +1352,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       parts.push(`${attributes.updates_verfuegbar} mit Update`);
     }
     if (attributes.gesperrt) parts.push(`${attributes.gesperrt} gesperrt`);
-    const manual = this._manualPiholeHosts().length;
+    const manual = this._manualPiholeHosts(true).length;
     if (manual) parts.push(`${manual} manuell`);
     const filtered = shown !== total ? ` · ${shown} angezeigt` : "";
     container.textContent = parts.join(" · ") + filtered;
@@ -1653,7 +1662,7 @@ class FritzSyncNetworkCard extends HTMLElement {
         record: host._record,
         names: host.name,
         ip: host.ip,
-        managed: false,
+        managed: !!host._managed,
       }, columns, false, this._piholeEditing === host._record);
     }
     const macAttr = ` data-mac="${escapeHtml(host.mac)}"`;
