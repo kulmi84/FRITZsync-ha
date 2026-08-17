@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.28";
+const FBN_VERSION = "1.10.29";
 
 // Ueberlebt neu erzeugte Karteninstanzen innerhalb derselben geladenen
 // Lovelace-Seite, selbst wenn localStorage im WebView nicht funktioniert.
@@ -2623,8 +2623,10 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
       this.querySelector(".fbn-form").appendChild(this._form);
 
       this._defaultFilterSelect = this.querySelector(".fbn-default-filter-select");
-      const saveDefaultFilter = () => {
-        const defaultFilter = this._defaultFilterSelect.value;
+      const saveDefaultFilter = (selectedValue = "") => {
+        const defaultFilter = typeof selectedValue === "string" && selectedValue
+          ? selectedValue
+          : this._defaultFilterSelect.value;
         if (!FILTERS.some((filter) => filter.key === defaultFilter)) return;
         if (this._config.default_filter === defaultFilter) return;
         const entity = this._config.entity || "";
@@ -2642,7 +2644,20 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
       // bereits ueber "input". "change" bleibt als Browser-Fallback aktiv.
       this._defaultFilterSelect.addEventListener("input", saveDefaultFilter);
       this._defaultFilterSelect.addEventListener("change", saveDefaultFilter);
-      this._defaultFilterSelect.addEventListener("selected", saveDefaultFilter);
+      // Bei ha-select wird `value` erst nach dem `selected`-Ereignis
+      // aktualisiert. Den Wert deshalb direkt vom angeklickten Eintrag
+      // uebernehmen; der spaetere selected-Fallback liest ihn im naechsten
+      // Microtask nochmals aus.
+      this._defaultFilterSelect.addEventListener("click", (event) => {
+        const item = event.target.closest && event.target.closest("mwc-list-item[value]");
+        if (!item) return;
+        const value = item.value || item.getAttribute("value") || "";
+        this._defaultFilterSelect.value = value;
+        saveDefaultFilter(value);
+      });
+      this._defaultFilterSelect.addEventListener("selected", () => {
+        queueMicrotask(() => saveDefaultFilter());
+      });
 
       this.querySelector(".fbn-reset").addEventListener("click", () => {
         // Der Fokusschutz wird hier bewusst uebergangen: ein Klick auf
