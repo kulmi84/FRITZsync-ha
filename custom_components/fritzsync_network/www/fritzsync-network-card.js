@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.24";
+const FBN_VERSION = "1.10.25";
 
 // Ueberlebt neu erzeugte Karteninstanzen innerhalb derselben geladenen
 // Lovelace-Seite, selbst wenn localStorage im WebView nicht funktioniert.
@@ -2388,15 +2388,6 @@ const EDITOR_SCHEMA = [
   { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
   { name: "title", selector: { text: {} } },
   {
-    name: "default_filter",
-    selector: {
-      select: {
-        mode: "dropdown",
-        options: FILTERS.map((filter) => ({ value: filter.key, label: filter.label })),
-      },
-    },
-  },
-  {
     type: "expandable",
     name: "spalten",
     title: "Spalten",
@@ -2480,7 +2471,6 @@ const EDITOR_SCHEMA = [
 const EDITOR_LABELS = {
   entity: "Sensor mit der Geräteliste",
   title: "Titel",
-  default_filter: "Standardfilter",
   show_status: "Status",
   show_name: "Gerät",
   show_network: "Netz / Subnetz",
@@ -2526,7 +2516,6 @@ const EDITOR_LABELS = {
 
 const EDITOR_HELPERS = {
   title: "Leer lassen, um keinen Titel über der Tabelle anzuzeigen.",
-  default_filter: "Dieser Statusfilter ist beim Öffnen oder Neuladen der Karte ausgewählt.",
   show_network: "Unterscheidet LAN/WLAN sowie Gast LAN/Gast WLAN; Subnetze sind separat filterbar.",
   show_ptr1: "Erste PTR-Antwort der FRITZ!Box; kann den schreibgeschützten Namen der Erstverbindung enthalten.",
   show_ptr2: "Zweite PTR-Antwort, sofern die FRITZ!Box mehrere Namen meldet.",
@@ -2578,6 +2567,15 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
         <style>${this._styles()}</style>
         <div class="fbn-editor">
           <div class="fbn-form"></div>
+          <label class="fbn-default-filter-field">
+            <span>Standardfilter</span>
+            <select class="fbn-default-filter-select" aria-label="Standardfilter">
+              ${FILTERS.map((filter) =>
+                `<option value="${filter.key}">${escapeHtml(filter.label)}</option>`
+              ).join("")}
+            </select>
+            <small>Dieser Statusfilter ist beim Öffnen oder Neuladen der Karte ausgewählt.</small>
+          </label>
           <details class="fbn-order-editor">
             <summary>
               <ha-icon icon="mdi:swap-vertical"></ha-icon>
@@ -2617,6 +2615,21 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
       });
       this.querySelector(".fbn-form").appendChild(this._form);
 
+      this._defaultFilterSelect = this.querySelector(".fbn-default-filter-select");
+      this._defaultFilterSelect.addEventListener("change", () => {
+        const defaultFilter = this._defaultFilterSelect.value;
+        const entity = this._config.entity || "";
+        const storageKey = `fritzsync-filters:${entity}`;
+        FILTER_MEMORY.delete(storageKey);
+        try {
+          localStorage.removeItem(storageKey);
+        } catch (_error) {
+          // Der neue Konfigurationswert funktioniert auch ohne localStorage.
+        }
+        this._config = withDefaults({ ...this._config, default_filter: defaultFilter });
+        this._fire(this._config);
+      });
+
       this.querySelector(".fbn-reset").addEventListener("click", () => {
         // Der Fokusschutz wird hier bewusst uebergangen: ein Klick auf
         // "Zuruecksetzen" ist eine ausdrueckliche Nutzerentscheidung.
@@ -2639,6 +2652,9 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
 
     if (this._hass) this._form.hass = this._hass;
     this._form.data = this._config;
+    if (this._defaultFilterSelect) {
+      this._defaultFilterSelect.value = this._config.default_filter || "aktiv";
+    }
     this._renderColumnOrder();
     this._renderColors();
   }
@@ -2766,6 +2782,17 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
   _styles() {
     return `
       .fbn-editor { display: flex; flex-direction: column; gap: 16px; }
+      .fbn-default-filter-field {
+        display: flex; flex-direction: column; gap: 6px; padding: 0 16px;
+        color: var(--primary-text-color);
+      }
+      .fbn-default-filter-field > span { font-size: 12px; color: var(--secondary-text-color); }
+      .fbn-default-filter-field select {
+        width: 100%; min-height: 48px; padding: 0 12px;
+        color: var(--primary-text-color); background: var(--card-background-color);
+        border: 1px solid var(--divider-color); border-radius: 4px; font: inherit;
+      }
+      .fbn-default-filter-field small { color: var(--secondary-text-color); line-height: 1.35; }
       .fbn-order-editor, .fbn-color-editor {
         border: 1px solid var(--divider-color); border-radius: 6px; padding: 0;
       }
