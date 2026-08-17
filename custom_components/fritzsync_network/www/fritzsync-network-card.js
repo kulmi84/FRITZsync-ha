@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.16";
+const FBN_VERSION = "1.10.17";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -776,7 +776,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       ).entries()
     ).map(([network, zone]) => ({
       key: `network:${network}`,
-      label: `${zone === "Gast/anderes Netz" ? "Gast" : zone}: ${network}`,
+      label: zone === "Gast/anderes Netz" ? "Gast" : zone,
       icon: zone === "Heimnetz" ? "mdi:lan" : "mdi:account-network",
     })) : [];
     const staticFilters = FILTERS.filter((filter) => this._config[filter.cfg]);
