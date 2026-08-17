@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.17
+
+- Subnetzangaben ausschließlich aus den beiden Filterbeschriftungen `Heimnetz` und `Gast` entfernen
+- exakte Subnetze intern unverändert für die Filterzuordnung weiterverwenden
+- Trefferzahlen und alle übrigen Filterbeschriftungen unverändert beibehalten
+
 ## 1.10.16
 
 - in jedem Status- und Netzfilter die jeweilige Trefferzahl in Klammern anzeigen
