@@ -208,7 +208,10 @@ class FritzBoxWebClient:
                 if current is None or bool(raw.get("Active")):
                     tr_by_mac[key] = raw
 
-        rows: list[dict[str, Any]] = []
+        # FRITZ!OS kann mehrere netDev-Unterobjekte fuer dieselbe IPv4 liefern
+        # (z. B. temporaere Windows-/IPv6-Identitaeten). Genau wie FRITZSync
+        # darf daraus nur eine autoritative Geraetezeile entstehen.
+        selected: dict[str, tuple[tuple[int, int, int, int], dict[str, Any]]] = {}
         for device in self.devices():
             mac = self._mac(device)
             ip = webui_ipv4(device)
@@ -224,7 +227,18 @@ class FritzBoxWebClient:
             active = webui_active(device)
             if active is not None:
                 raw["Active"] = active
-            rows.append(raw)
+            generated = name.casefold().startswith("pc-")
+            first_octet = int(mac[:2], 16)
+            quality = (
+                int(bool(raw.get("Active"))),
+                int(not generated),
+                int(mac in tr_by_mac),
+                int(not (first_octet & 0x02)),
+            )
+            current = selected.get(ip)
+            if current is None or quality > current[0]:
+                selected[ip] = (quality, raw)
+        rows = [item[1] for item in selected.values()]
         if not rows:
             raise FritzBoxWebError("FRITZ!Box-WebUI lieferte keine IPv4-Geräte")
         return rows
@@ -233,7 +247,15 @@ class FritzBoxWebClient:
     def _mac(device: dict[str, Any]) -> str:
         for key in ("mac", "MAC", "macAddress", "MACAddress", "mac_address"):
             if device.get(key):
-                return "".join(ch for ch in str(device[key]) if ch.isalnum()).lower()
+                value = "".join(ch for ch in str(device[key]) if ch.isalnum()).lower()
+                if len(value) != 12 or any(ch not in "0123456789abcdef" for ch in value):
+                    continue
+                # Multicast-, Null- und Broadcastadressen sind keine stabile
+                # Geraeteidentitaet und tauchen in verschachtelten netDev-
+                # Objekten gelegentlich faelschlich als MAC auf.
+                if int(value[:2], 16) & 0x01 or value in {"000000000000", "ffffffffffff"}:
+                    continue
+                return value
         return ""
 
     def device(self, mac: str) -> dict[str, Any] | None:
