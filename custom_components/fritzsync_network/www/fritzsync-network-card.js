@@ -17,7 +17,11 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.23";
+const FBN_VERSION = "1.10.24";
+
+// Ueberlebt neu erzeugte Karteninstanzen innerhalb derselben geladenen
+// Lovelace-Seite, selbst wenn localStorage im WebView nicht funktioniert.
+const FILTER_MEMORY = new Map();
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -459,7 +463,9 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._resetDefaultFilter();
     this._networkFilter = "";
     try {
-      const saved = JSON.parse(localStorage.getItem(this._filterStorageKey()) || "null");
+      const key = this._filterStorageKey();
+      const saved = FILTER_MEMORY.get(key) ||
+        JSON.parse(localStorage.getItem(key) || "null");
       if (!saved || saved.default_filter !== this._config.default_filter) {
         this._saveFilters();
         return;
@@ -473,12 +479,14 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   _saveFilters() {
+    const state = {
+      filter: this._filter,
+      network: this._networkFilter,
+      default_filter: this._config.default_filter,
+    };
+    FILTER_MEMORY.set(this._filterStorageKey(), state);
     try {
-      localStorage.setItem(this._filterStorageKey(), JSON.stringify({
-        filter: this._filter,
-        network: this._networkFilter,
-        default_filter: this._config.default_filter,
-      }));
+      localStorage.setItem(this._filterStorageKey(), JSON.stringify(state));
     } catch (_error) {
       // Private Browsermodi koennen localStorage blockieren; die Karte
       // funktioniert dann weiterhin mit dem konfigurierten Standardfilter.

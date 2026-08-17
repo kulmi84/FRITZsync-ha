@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.24
+
+- letzte Filterauswahl zusätzlich im geladenen Kartenmodul speichern
+- Auswahl auch dann über Dashboard-Ansichtswechsel erhalten, wenn Home Assistants WebView `localStorage` nicht zuverlässig bereitstellt
+- `Aktiv` nur verwenden, wenn weder im Modul- noch im Browserspeicher eine gültige Auswahl vorhanden ist
+
 ## 1.10.23
 
 - Navigationsbehandlung aus 1.10.22 vollständig zurückrollen
