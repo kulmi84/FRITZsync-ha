@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.20
+
+- im Filterchip `Manuell` stets die Gesamtzahl aller manuellen Pi-hole-DNS-Einträge anzeigen
+- den manuellen Gesamtzähler nicht durch einen gewählten Heimnetz- oder Gastfilter einschränken
+
 ## 1.10.19
 
 - `Aktiv` ausschließlich als aktuell von der FRITZ!Box verbunden gemeldete Geräte zählen
