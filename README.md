@@ -4,7 +4,7 @@ Lokale Home-Assistant-Integration für FRITZ!Box-Netzwerkgeräte, Pi-hole-DNS un
 konfigurierbare Dashboard-Tabelle. Geräte lassen sich durchsuchen, filtern, umbenennen,
 aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
-![Version](https://img.shields.io/badge/Version-1.10.19-blue)
+![Version](https://img.shields.io/badge/Version-1.10.20-blue)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)
 ![FRITZ!OS](https://img.shields.io/badge/FRITZ!OS-8.x-E2001A)
@@ -225,6 +225,8 @@ wird nicht im Chip eingeblendet.
 manuelle Pi-hole-DNS-Einträge zählen nur bei `Alle` und `Manuell`. Die Zahl eines Netzfilters
 berücksichtigt den gewählten Statusfilter – bei `Aktiv` plus `Heimnetz` steht dort somit die
 Zahl der aktuell verbundenen Heimnetzgeräte.
+Der Chip `Manuell` zeigt dabei stets die Gesamtzahl aller manuellen Pi-hole-DNS-Einträge,
+unabhängig vom ausgewählten Netzfilter.
 
 Spalten werden im Editor per Ziehen oder mit Hoch-/Runter-Schaltflächen angeordnet.
 Die Breite lässt sich direkt am rechten Rand eines Tabellenkopfs ziehen; ein Doppelklick
