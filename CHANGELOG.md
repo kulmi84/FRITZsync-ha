@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.22
+
+- konfigurierten Standardfilter beim Zurückkehren aus einer anderen Dashboard-Ansicht erneut anwenden
+- von Lovelace im Speicher gehaltene Karteninstanzen beim erneuten Verbinden korrekt zurücksetzen
+- Filterchips, Zusammenfassung und Tabellenzeilen danach gemeinsam aktualisieren
+
 ## 1.10.21
 
 - Standard-Statusfilter im visuellen Karteneditor auswählbar machen
