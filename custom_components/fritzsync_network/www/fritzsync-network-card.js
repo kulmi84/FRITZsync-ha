@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.32";
+const FBN_VERSION = "1.10.33";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -404,6 +404,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._piholeHiddenRecords = new Set();
     this._busyCount = 0;
     this._columnWidths = {};
+    this._configInitialized = false;
   }
 
   /* -- Lovelace-Schnittstelle -------------------------------------- */
@@ -414,17 +415,24 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
     const previous = this._config;
     const next = withDefaults(config);
+    const initialConfig = !this._configInitialized;
     const entityChanged = previous.entity !== next.entity;
     const defaultFilterChanged = previous.default_filter !== next.default_filter ||
       previous.default_activity_filter !== next.default_activity_filter;
     const unchanged = JSON.stringify(previous) === JSON.stringify(next);
     this._config = next;
+    this._configInitialized = true;
     if (unchanged) return;
     // Der Standardfilter stammt ausschliesslich aus der Kartenkonfiguration.
     // Laufzeitfilter gelten nur fuer die aktuelle Karteninstanz und koennen
     // deshalb nach einem Neuladen keinen alten Standard mehr ueberschreiben.
     if (!this._built || entityChanged || defaultFilterChanged) {
       this._resetDefaultFilter();
+    }
+    if (initialConfig) {
+      this._restoreFilterSelection();
+    } else if (entityChanged || defaultFilterChanged) {
+      this._clearFilterSelection();
     }
     try {
       localStorage.removeItem(`fritzsync-filters:${this._config.entity}`);
@@ -518,6 +526,49 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._activityFilter = ACTIVITY_FILTERS.some((filter) => filter.key === activity)
       ? activity
       : "";
+  }
+
+  _filterStorageKey() {
+    return `fritzsync-card-filters:v2:${this._config.entity}`;
+  }
+
+  _filterDefaultsSignature() {
+    return `${this._config.default_filter}|${this._config.default_activity_filter}`;
+  }
+
+  _restoreFilterSelection() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(this._filterStorageKey()) || "null");
+      if (!saved || saved.defaults !== this._filterDefaultsSignature()) return;
+      if (PRIMARY_FILTERS.some((filter) => filter.key === saved.filter)) {
+        this._filter = saved.filter;
+      }
+      this._activityFilter = ACTIVITY_FILTERS.some((filter) => filter.key === saved.activity)
+        ? saved.activity
+        : "";
+    } catch (_error) {
+      // Gesperrter oder ungueltiger Browser-Speicher darf die Karte nicht blockieren.
+    }
+  }
+
+  _saveFilterSelection() {
+    try {
+      localStorage.setItem(this._filterStorageKey(), JSON.stringify({
+        defaults: this._filterDefaultsSignature(),
+        filter: this._filter,
+        activity: this._activityFilter,
+      }));
+    } catch (_error) {
+      // Die Auswahl funktioniert weiterhin bis zum naechsten Kartenaufbau.
+    }
+  }
+
+  _clearFilterSelection() {
+    try {
+      localStorage.removeItem(this._filterStorageKey());
+    } catch (_error) {
+      // Private Browsermodi koennen localStorage sperren.
+    }
   }
 
   _stateObj() {
@@ -947,6 +998,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       return;
     }
     this._buildFilters();
+    this._saveFilterSelection();
     this._renderSummary();
     this._renderBody();
   }
