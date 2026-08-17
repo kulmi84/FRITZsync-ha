@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.15";
+const FBN_VERSION = "1.10.16";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -640,6 +640,36 @@ class FritzSyncNetworkCard extends HTMLElement {
     return limit > 0 ? sorted.slice(0, limit) : sorted;
   }
 
+  /** Anzahl der Zeilen, die ein Filter ohne Suche oder zweiten Netzfilter trifft. */
+  _filterCount(key) {
+    let hosts = this._listHosts();
+    if (this._config.hide_inactive) {
+      hosts = hosts.filter((host) => host._pihole || host.active);
+    }
+    if (key.startsWith("network:")) {
+      const network = key.slice("network:".length);
+      return hosts.filter((host) => host.network === network).length;
+    }
+    switch (key) {
+      case "aktiv":
+        return hosts.filter((host) => host._pihole || host.active).length;
+      case "inaktiv":
+        return hosts.filter((host) => !host._pihole && !host.active).length;
+      case "gast":
+        return hosts.filter((host) => host.guest).length;
+      case "gesperrt":
+        return hosts.filter((host) => host.blocked).length;
+      case "update":
+        return hosts.filter((host) => host.update_available).length;
+      case "neu":
+        return hosts.filter((host) => host.is_new).length;
+      case "manuell":
+        return hosts.filter((host) => host._pihole).length;
+      default:
+        return hosts.length;
+    }
+  }
+
   /* -- Aufbau ------------------------------------------------------- */
 
   _update() {
@@ -757,15 +787,18 @@ class FritzSyncNetworkCard extends HTMLElement {
         : "alle";
     }
     if (!this._config.show_filter_networks) this._networkFilter = "";
-    container.innerHTML = this._availableFilters.map(
-      (filter) => `
-        <button class="fbn-chip" data-filter="${filter.key}" type="button"
+    container.innerHTML = this._availableFilters.map((filter) => {
+      const count = this._filterCount(filter.key);
+      const newAlert = filter.key === "neu" && count > 0;
+      return `
+        <button class="fbn-chip${newAlert ? " fbn-chip-new-alert" : ""}" data-filter="${filter.key}" type="button"
+                ${newAlert ? `title="${count} neue${count === 1 ? "s Gerät" : " Geräte"} bestätigen"` : ""}
                 aria-pressed="${filter.key.startsWith("network:")
                   ? filter.key.slice("network:".length) === this._networkFilter
                   : filter.key === this._filter}">
-          <ha-icon icon="${filter.icon}"></ha-icon><span>${escapeHtml(filter.label)}</span>
-        </button>`
-    ).join("");
+          <ha-icon icon="${filter.icon}"></ha-icon><span>${escapeHtml(filter.label)} (${count})</span>
+        </button>`;
+    }).join("");
     if (!container.dataset.bound) {
       container.dataset.bound = "1";
       container.addEventListener("click", (event) => {
@@ -2044,6 +2077,11 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-chip ha-icon { --mdc-icon-size: 16px; width: 16px; height: 16px; }
       .fbn-chip[aria-pressed="true"] {
         border-color: var(--fbn-accent); color: var(--fbn-accent);
+      }
+      .fbn-chip.fbn-chip-new-alert {
+        border-color: var(--warning-color, #ffb300);
+        color: var(--warning-color, #ffb300);
+        background: color-mix(in srgb, var(--warning-color, #ffb300) 18%, transparent);
       }
       .fbn-chip:focus-visible { outline: 2px solid var(--fbn-accent); outline-offset: 2px; }
       .fbn-busy, .fbn-busy * { cursor: progress !important; }
