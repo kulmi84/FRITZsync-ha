@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.18
+
+- mehrere verschachtelte FRITZ!OS-netDev-Zeilen derselben IPv4 zu genau einem Gerät zusammenführen
+- aktive, sinnvoll benannte und durch TR-064 bestätigte Geräteidentitäten gegenüber generierten `PC-*`-Zeilen bevorzugen
+- ungültige Multicast-, Null- und Broadcast-MAC-Adressen aus verschachtelten WebUI-Objekten verwerfen
+- doppelte neue Geräte für denselben Windows-PC beziehungsweise dieselbe IPv4 verhindern
+
 ## 1.10.17
 
 - Subnetzangaben ausschließlich aus den beiden Filterbeschriftungen `Heimnetz` und `Gast` entfernen

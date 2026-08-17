@@ -61,6 +61,43 @@ class FritzBoxWebTests(unittest.TestCase):
         self.assertEqual(rows[0]["InterfaceType"], "Ethernet")
         self.assertTrue(rows[0]["Active"])
 
+    def test_duplicate_webui_rows_use_meaningful_device_for_same_ip(self):
+        client = object.__new__(FritzBoxWebClient)
+        client.devices = lambda: [
+            {
+                "UID": "landevice1",
+                "mac": "38:22:E2:2B:09:84",
+                "name": "MK-PC20",
+                "ip": "192.0.2.134",
+                "online": True,
+            },
+            {
+                "UID": "landevice2",
+                "mac": "9C:D0:8E:B2:88:A4",
+                "name": "PC-2142F66D-D9EF",
+                "ip": "192.0.2.134",
+                "online": True,
+            },
+            {
+                "UID": "landevice3",
+                "mac": "09:35:D8:DA:24:E4",
+                "name": "PC-ungueltige-multicast-mac",
+                "ip": "192.0.2.134",
+                "online": True,
+            },
+        ]
+        rows = client.authoritative_hosts([
+            {
+                "MACAddress": "38:22:E2:2B:09:84",
+                "IPAddress": "192.0.2.134",
+                "HostName": "MK-PC20",
+                "Active": True,
+            }
+        ])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["MACAddress"], "38:22:E2:2B:09:84")
+        self.assertEqual(rows[0]["X_AVM-DE_FriendlyName"], "MK-PC20")
+
 
 if __name__ == "__main__":
     unittest.main()
