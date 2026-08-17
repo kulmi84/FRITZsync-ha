@@ -2414,16 +2414,10 @@ const EDITOR_SCHEMA = [
     schema: [
       { name: "show_summary", selector: { boolean: {} } },
       { name: "show_search", selector: { boolean: {} } },
-      { name: "show_refresh", selector: { boolean: {} } },
       { name: "show_pihole_records", selector: { boolean: {} } },
       { name: "hide_inactive", selector: { boolean: {} } },
       { name: "compact", selector: { boolean: {} } },
-      { name: "show_details_popup", selector: { boolean: {} } },
-      { name: "open_device_on_click", selector: { boolean: {} } },
-      { name: "show_scroll_arrows", selector: { boolean: {} } },
       { name: "sticky_name", selector: { boolean: {} } },
-      { name: "ip_opens_web", selector: { boolean: {} } },
-      { name: "ip_web_fallback", selector: { boolean: {} } },
       {
         name: "max_rows",
         selector: { number: { min: 0, max: 500, mode: "box" } },
@@ -2460,6 +2454,21 @@ const EDITOR_SCHEMA = [
       { name: "show_filter_manual", selector: { boolean: {} } },
       { name: "show_filter_home_network", selector: { boolean: {} } },
       { name: "show_filter_guest_network", selector: { boolean: {} } },
+    ],
+  },
+  {
+    type: "expandable",
+    name: "bedienung",
+    title: "Bedienung",
+    flatten: true,
+    icon: "mdi:gesture-tap",
+    schema: [
+      { name: "show_refresh", selector: { boolean: {} } },
+      { name: "show_details_popup", selector: { boolean: {} } },
+      { name: "open_device_on_click", selector: { boolean: {} } },
+      { name: "show_scroll_arrows", selector: { boolean: {} } },
+      { name: "ip_opens_web", selector: { boolean: {} } },
+      { name: "ip_web_fallback", selector: { boolean: {} } },
     ],
   },
   {
@@ -2641,6 +2650,15 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
       });
       this.querySelector(".fbn-form").appendChild(this._form);
 
+      this._orderDetails = this.querySelector(".fbn-order-editor");
+      this._colorDetails = this.querySelector(".fbn-color-editor");
+      this._orderDetails.addEventListener("toggle", () => {
+        if (this._orderDetails.open) this._renderColumnOrder();
+      });
+      this._colorDetails.addEventListener("toggle", () => {
+        if (this._colorDetails.open) this._renderColors();
+      });
+
       this.querySelector(".fbn-reset").addEventListener("click", () => {
         // Der Fokusschutz wird hier bewusst uebergangen: ein Klick auf
         // "Zuruecksetzen" ist eine ausdrueckliche Nutzerentscheidung.
@@ -2663,8 +2681,8 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
 
     if (this._hass) this._form.hass = this._hass;
     this._form.data = this._config;
-    this._renderColumnOrder();
-    this._renderColors();
+    if (this._orderDetails && this._orderDetails.open) this._renderColumnOrder();
+    if (this._colorDetails && this._colorDetails.open) this._renderColors();
   }
 
   _renderColumnOrder() {
