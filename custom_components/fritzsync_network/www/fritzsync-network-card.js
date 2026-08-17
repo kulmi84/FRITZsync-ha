@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.20";
+const FBN_VERSION = "1.10.21";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -25,7 +25,8 @@ const FBN_VERSION = "1.10.20";
 
 const CONFIG_DEFAULTS = {
   entity: "",
-  title: "Netzwerkgeräte",
+  title: "",
+  default_filter: "aktiv",
 
   // Spalten
   show_status: true,
@@ -390,6 +391,9 @@ class FritzSyncNetworkCard extends HTMLElement {
       throw new Error("Bitte den Sensor mit der Geräteliste auswählen (entity).");
     }
     this._config = withDefaults(config);
+    this._filter = FILTERS.some((filter) => filter.key === this._config.default_filter)
+      ? this._config.default_filter
+      : "aktiv";
     try {
       this._columnWidths = JSON.parse(
         localStorage.getItem(`fritzsync-column-widths:${this._config.entity}`) || "{}"
@@ -2329,6 +2333,15 @@ const EDITOR_SCHEMA = [
   { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
   { name: "title", selector: { text: {} } },
   {
+    name: "default_filter",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: FILTERS.map((filter) => ({ value: filter.key, label: filter.label })),
+      },
+    },
+  },
+  {
     type: "expandable",
     name: "spalten",
     title: "Spalten",
@@ -2412,6 +2425,7 @@ const EDITOR_SCHEMA = [
 const EDITOR_LABELS = {
   entity: "Sensor mit der Geräteliste",
   title: "Titel",
+  default_filter: "Standardfilter",
   show_status: "Status",
   show_name: "Gerät",
   show_network: "Netz / Subnetz",
@@ -2456,6 +2470,8 @@ const EDITOR_LABELS = {
 };
 
 const EDITOR_HELPERS = {
+  title: "Leer lassen, um keinen Titel über der Tabelle anzuzeigen.",
+  default_filter: "Dieser Statusfilter ist beim Öffnen oder Neuladen der Karte ausgewählt.",
   show_network: "Unterscheidet LAN/WLAN sowie Gast LAN/Gast WLAN; Subnetze sind separat filterbar.",
   show_ptr1: "Erste PTR-Antwort der FRITZ!Box; kann den schreibgeschützten Namen der Erstverbindung enthalten.",
   show_ptr2: "Zweite PTR-Antwort, sofern die FRITZ!Box mehrere Namen meldet.",
@@ -2536,7 +2552,12 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
       this._form.computeHelper = (schema) => EDITOR_HELPERS[schema.name] || "";
       this._form.addEventListener("value-changed", (event) => {
         event.stopPropagation();
-        this._config = withDefaults({ ...this._config, ...event.detail.value });
+        const formValue = event.detail.value || {};
+        const next = { ...this._config, ...formValue };
+        // ha-form lässt ein geleertes optionales Textfeld teilweise ganz aus
+        // dem Wert weg. In diesem Fall muss der bisherige Titel verschwinden.
+        if (!Object.prototype.hasOwnProperty.call(formValue, "title")) next.title = "";
+        this._config = withDefaults(next);
         this._fire(this._config);
       });
       this.querySelector(".fbn-form").appendChild(this._form);
