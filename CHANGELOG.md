@@ -4,8 +4,9 @@
 
 - Navigationsbehandlung aus 1.10.22 vollständig zurückrollen
 - durch das erneute Rendern bei Home-Assistant-Routenwechseln verursachtes weißes Aufblinken beseitigen
-- Sichtbarkeit der konkreten Karte statt globale Home-Assistant-Routenwechsel beobachten
-- Standardfilter beim tatsächlichen Wiedereinblenden nur dann anwenden, wenn er vom aktuellen Filter abweicht
+- zuletzt gewählten Status- und Netzfilter pro Karte im Browser speichern
+- gespeicherte Filter beim nächsten Öffnen wiederherstellen
+- konfigurierten Standardfilter als Ausgangswert und bei einer Einstellungsänderung verwenden
 
 ## 1.10.22
 
