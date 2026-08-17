@@ -370,6 +370,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._signature = "";
     this._built = false;
     this._resizeObserver = null;
+    this._configRenderTimer = null;
     // Popup: der Overlay-Knoten haengt am document.body, nicht in der
     // Karte - so liegt er sicher ueber allem, unabhaengig von den
     // Stapelkontexten des Dashboards. Gemerkt wird die MAC-Adresse des
@@ -393,12 +394,20 @@ class FritzSyncNetworkCard extends HTMLElement {
     if (!config || !config.entity) {
       throw new Error("Bitte den Sensor mit der Geräteliste auswählen (entity).");
     }
-    this._config = withDefaults(config);
+    const previous = this._config;
+    const next = withDefaults(config);
+    const entityChanged = previous.entity !== next.entity;
+    const defaultFilterChanged = previous.default_filter !== next.default_filter;
+    const unchanged = JSON.stringify(previous) === JSON.stringify(next);
+    this._config = next;
+    if (unchanged) return;
     // Der Standardfilter stammt ausschliesslich aus der Kartenkonfiguration.
     // Laufzeitfilter gelten nur fuer die aktuelle Karteninstanz und koennen
     // deshalb nach einem Neuladen keinen alten Standard mehr ueberschreiben.
-    this._resetDefaultFilter();
-    this._networkFilter = "";
+    if (!this._built || entityChanged || defaultFilterChanged) {
+      this._resetDefaultFilter();
+      this._networkFilter = "";
+    }
     try {
       localStorage.removeItem(`fritzsync-filters:${this._config.entity}`);
     } catch (_error) {
@@ -413,11 +422,23 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
     this._sortBy = this._config.sort_by;
     this._sortDir = this._config.sort_dir === "desc" ? "desc" : "asc";
-    this._built = false;
-    this._signature = "";
-    this._closePopup();
-    this.innerHTML = "";
-    if (this._hass) this._update();
+    const rebuild = () => {
+      this._configRenderTimer = null;
+      this._built = false;
+      this._signature = "";
+      this._closePopup();
+      this.innerHTML = "";
+      if (this._hass) this._update();
+    };
+    if (this._built && this._hass && !entityChanged) {
+      // Im visuellen Editor kommen mehrere setConfig-Aufrufe direkt
+      // hintereinander. Die teure Vorschau mit allen Geraetezeilen wird
+      // deshalb erst nach der letzten Aenderung einmal neu aufgebaut.
+      if (this._configRenderTimer) clearTimeout(this._configRenderTimer);
+      this._configRenderTimer = setTimeout(rebuild, 220);
+    } else {
+      rebuild();
+    }
   }
 
   set hass(hass) {
@@ -456,6 +477,10 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   disconnectedCallback() {
+    if (this._configRenderTimer) {
+      clearTimeout(this._configRenderTimer);
+      this._configRenderTimer = null;
+    }
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
