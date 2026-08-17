@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.21
+
+- Standard-Statusfilter im visuellen Karteneditor auswählbar machen
+- gewählten Standardfilter beim Öffnen und Neuladen der Karte anwenden
+- leeren Kartentitel zulassen und den bisherigen erzwungenen Titel `Netzwerkgeräte` entfernen
+- Hilfetexte für Standardfilter und optionalen Titel ergänzen
+
 ## 1.10.20
 
 - im Filterchip `Manuell` stets die Gesamtzahl aller manuellen Pi-hole-DNS-Einträge anzeigen
