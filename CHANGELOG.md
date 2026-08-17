@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.16
+
+- in jedem Status- und Netzfilter die jeweilige Trefferzahl in Klammern anzeigen
+- Filterzahlen unabhängig von der aktuellen Textsuche berechnen, damit sie stabil bleiben
+- den Filterchip `Neu` gelb hervorheben, sobald mindestens ein unbestätigtes Gerät vorhanden ist
+- gelbe Hervorhebung nach Bestätigung des letzten neuen Geräts automatisch entfernen
+
 ## 1.10.15
 
 - die in 1.10.14 eingeführte Änderung fremder Hostdatensätze derselben früheren IP vollständig zurücknehmen
