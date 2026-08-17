@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.27";
+const FBN_VERSION = "1.10.28";
 
 // Ueberlebt neu erzeugte Karteninstanzen innerhalb derselben geladenen
 // Lovelace-Seite, selbst wenn localStorage im WebView nicht funktioniert.
@@ -2574,15 +2574,15 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
         <style>${this._styles()}</style>
         <div class="fbn-editor">
           <div class="fbn-form"></div>
-          <label class="fbn-default-filter-field">
+          <div class="fbn-default-filter-field">
             <span>Standardfilter</span>
-            <select class="fbn-default-filter-select" aria-label="Standardfilter">
+            <ha-select class="fbn-default-filter-select" label="Standardfilter">
               ${FILTERS.map((filter) =>
-                `<option value="${filter.key}">${escapeHtml(filter.label)}</option>`
+                `<mwc-list-item value="${filter.key}">${escapeHtml(filter.label)}</mwc-list-item>`
               ).join("")}
-            </select>
+            </ha-select>
             <small>Dieser Statusfilter ist beim Öffnen oder Neuladen der Karte ausgewählt.</small>
-          </label>
+          </div>
           <details class="fbn-order-editor">
             <summary>
               <ha-icon icon="mdi:swap-vertical"></ha-icon>
@@ -2642,6 +2642,7 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
       // bereits ueber "input". "change" bleibt als Browser-Fallback aktiv.
       this._defaultFilterSelect.addEventListener("input", saveDefaultFilter);
       this._defaultFilterSelect.addEventListener("change", saveDefaultFilter);
+      this._defaultFilterSelect.addEventListener("selected", saveDefaultFilter);
 
       this.querySelector(".fbn-reset").addEventListener("click", () => {
         // Der Fokusschutz wird hier bewusst uebergangen: ein Klick auf
@@ -2800,16 +2801,7 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
         color: var(--primary-text-color);
       }
       .fbn-default-filter-field > span { font-size: 12px; color: var(--secondary-text-color); }
-      .fbn-default-filter-field select {
-        width: 100%; min-height: 48px; padding: 0 12px;
-        color: var(--primary-text-color); background: var(--card-background-color);
-        border: 1px solid var(--divider-color); border-radius: 4px; font: inherit;
-        color-scheme: dark light;
-      }
-      .fbn-default-filter-field select option {
-        color: var(--primary-text-color);
-        background: var(--card-background-color);
-      }
+      .fbn-default-filter-field ha-select { width: 100%; }
       .fbn-default-filter-field small { color: var(--secondary-text-color); line-height: 1.35; }
       .fbn-order-editor, .fbn-color-editor {
         border: 1px solid var(--divider-color); border-radius: 6px; padding: 0;
