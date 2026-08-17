@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.31";
+const FBN_VERSION = "1.10.32";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -26,7 +26,8 @@ const FBN_VERSION = "1.10.31";
 const CONFIG_DEFAULTS = {
   entity: "",
   title: "",
-  default_filter: "aktiv",
+  default_filter: "alle",
+  default_activity_filter: "alle",
 
   // Spalten
   show_status: true,
@@ -54,7 +55,6 @@ const CONFIG_DEFAULTS = {
   show_filter_all: true,
   show_filter_active: true,
   show_filter_inactive: true,
-  show_filter_guest: true,
   show_filter_blocked: true,
   show_filter_update: true,
   show_filter_new: true,
@@ -65,7 +65,6 @@ const CONFIG_DEFAULTS = {
   show_filter_guest_network: true,
   show_refresh: true,
   show_pihole_records: true,
-  hide_inactive: false,
   compact: false,
   max_rows: 0,
   show_details_popup: true,
@@ -123,16 +122,22 @@ const DEFAULT_COLUMN_WIDTHS = {
   wan: 80, update: 80, speed: 95, model: 140, type: 120,
 };
 
-const FILTERS = [
+const PRIMARY_FILTERS = [
   { key: "alle", cfg: "show_filter_all", label: "Alle", icon: "mdi:format-list-bulleted" },
+  { key: "lan", cfg: "show_filter_home_network", label: "LAN", icon: "mdi:lan" },
+  { key: "gast", cfg: "show_filter_guest_network", label: "Gast", icon: "mdi:wifi" },
+  { key: "manuell", cfg: "show_filter_manual", label: "Manuell", icon: "mdi:dns" },
+  { key: "neu", cfg: "show_filter_new", label: "Neu", icon: "mdi:new-box" },
+  { key: "update", cfg: "show_filter_update", label: "Update", icon: "mdi:package-down" },
+  { key: "gesperrt", cfg: "show_filter_blocked", label: "Gesperrt", icon: "mdi:web-off" },
+];
+
+const ACTIVITY_FILTERS = [
   { key: "aktiv", cfg: "show_filter_active", label: "Aktiv", icon: "mdi:lan-connect" },
   { key: "inaktiv", cfg: "show_filter_inactive", label: "Inaktiv", icon: "mdi:lan-disconnect" },
-  { key: "gast", cfg: "show_filter_guest", label: "Gastgeräte", icon: "mdi:account-question" },
-  { key: "gesperrt", cfg: "show_filter_blocked", label: "Gesperrt", icon: "mdi:web-off" },
-  { key: "update", cfg: "show_filter_update", label: "Update", icon: "mdi:package-down" },
-  { key: "neu", cfg: "show_filter_new", label: "Neu", icon: "mdi:new-box" },
-  { key: "manuell", cfg: "show_filter_manual", label: "Manuell", icon: "mdi:dns" },
 ];
+
+const FILTERS = [...PRIMARY_FILTERS, ...ACTIVITY_FILTERS];
 
 /** Standardfarbe je Farbschluessel, wenn der Nutzer nichts gesetzt hat. */
 const COLOR_FALLBACKS = {
@@ -171,7 +176,20 @@ const COLOR_EDITOR_FIELDS = [
 
 /** Fuellt fehlende Schluessel mit den Standardwerten auf. */
 function withDefaults(config) {
-  return { ...CONFIG_DEFAULTS, ...(config || {}) };
+  const result = { ...CONFIG_DEFAULTS, ...(config || {}) };
+  // Bestehende Karten mit Aktiv/Inaktiv als altem Hauptfilter werden
+  // automatisch in das neue zweistufige Filtermodell uebernommen.
+  if (result.default_filter === "aktiv" || result.default_filter === "inaktiv") {
+    result.default_activity_filter = result.default_filter;
+    result.default_filter = "alle";
+  }
+  if (!PRIMARY_FILTERS.some((filter) => filter.key === result.default_filter)) {
+    result.default_filter = "alle";
+  }
+  if (!["alle", "aktiv", "inaktiv"].includes(result.default_activity_filter)) {
+    result.default_activity_filter = "alle";
+  }
+  return result;
 }
 
 function orderedColumns(config) {
@@ -361,10 +379,10 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._config = withDefaults({});
     this._hass = null;
     this._search = "";
-    this._filter = "aktiv";
-    // Netz und Status sind getrennte Filter. So kann z. B. innerhalb
-    // des Gastnetzes zwischen "Aktiv" und "Alle" gewechselt werden.
-    this._networkFilter = "";
+    this._filter = "alle";
+    // Hauptfilter und Aktivitaet sind getrennt. So funktionieren z. B.
+    // "LAN + Aktiv", "Gast + Inaktiv" und "Alle + Aktiv".
+    this._activityFilter = "";
     this._sortBy = "ip";
     this._sortDir = "asc";
     this._signature = "";
@@ -397,7 +415,8 @@ class FritzSyncNetworkCard extends HTMLElement {
     const previous = this._config;
     const next = withDefaults(config);
     const entityChanged = previous.entity !== next.entity;
-    const defaultFilterChanged = previous.default_filter !== next.default_filter;
+    const defaultFilterChanged = previous.default_filter !== next.default_filter ||
+      previous.default_activity_filter !== next.default_activity_filter;
     const unchanged = JSON.stringify(previous) === JSON.stringify(next);
     this._config = next;
     if (unchanged) return;
@@ -406,7 +425,6 @@ class FritzSyncNetworkCard extends HTMLElement {
     // deshalb nach einem Neuladen keinen alten Standard mehr ueberschreiben.
     if (!this._built || entityChanged || defaultFilterChanged) {
       this._resetDefaultFilter();
-      this._networkFilter = "";
     }
     try {
       localStorage.removeItem(`fritzsync-filters:${this._config.entity}`);
@@ -493,9 +511,13 @@ class FritzSyncNetworkCard extends HTMLElement {
 
   _resetDefaultFilter() {
     const configured = this._config && this._config.default_filter;
-    this._filter = FILTERS.some((filter) => filter.key === configured)
+    this._filter = PRIMARY_FILTERS.some((filter) => filter.key === configured)
       ? configured
-      : "aktiv";
+      : "alle";
+    const activity = this._config && this._config.default_activity_filter;
+    this._activityFilter = ACTIVITY_FILTERS.some((filter) => filter.key === activity)
+      ? activity
+      : "";
   }
 
   _stateObj() {
@@ -636,14 +658,13 @@ class FritzSyncNetworkCard extends HTMLElement {
     return this._config.sticky_name && keys[0] === "status" && keys[1] === "name";
   }
 
-  _applyStatusFilter(hosts, filter) {
+  _applyPrimaryFilter(hosts, filter) {
     switch (filter) {
-      case "aktiv":
-        return hosts.filter((host) => !host._pihole && host.active);
-      case "inaktiv":
-        return hosts.filter((host) => !host._pihole && !host.active);
+      case "lan":
+        return hosts.filter((host) => !host._pihole && host.zone === "Heimnetz");
       case "gast":
-        return hosts.filter((host) => host.guest);
+        return hosts.filter((host) => !host._pihole &&
+          (host.zone === "Gast" || host.zone === "Gast/anderes Netz"));
       case "gesperrt":
         return hosts.filter((host) => !host._pihole && host.blocked);
       case "update":
@@ -657,19 +678,18 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
   }
 
+  _applyActivityFilter(hosts, activity = this._activityFilter) {
+    if (activity === "aktiv") return hosts.filter((host) => !host._pihole && host.active);
+    if (activity === "inaktiv") return hosts.filter((host) => !host._pihole && !host.active);
+    return hosts;
+  }
+
   _filteredHosts() {
     const search = this._search.trim().toLowerCase();
     let hosts = this._listHosts();
 
-    if (this._config.hide_inactive) {
-      hosts = hosts.filter((host) => host._pihole || host.active);
-    }
-
-    hosts = this._applyStatusFilter(hosts, this._filter);
-
-    if (this._networkFilter) {
-      hosts = hosts.filter((host) => host.network === this._networkFilter);
-    }
+    hosts = this._applyPrimaryFilter(hosts, this._filter);
+    hosts = this._applyActivityFilter(hosts);
 
     if (search) {
       hosts = hosts.filter((host) =>
@@ -693,24 +713,13 @@ class FritzSyncNetworkCard extends HTMLElement {
     return limit > 0 ? sorted.slice(0, limit) : sorted;
   }
 
-  /** Anzahl der Zeilen eines Filters in Kombination mit dem jeweils anderen Filter. */
+  /** Hauptfilter zaehlen stabil; Aktiv/Inaktiv passend zum aktuellen Hauptfilter. */
   _filterCount(key) {
-    let hosts = this._listHosts();
-    if (this._config.hide_inactive) {
-      hosts = hosts.filter((host) => host._pihole || host.active);
+    const hosts = this._listHosts();
+    if (ACTIVITY_FILTERS.some((filter) => filter.key === key)) {
+      return this._applyActivityFilter(this._applyPrimaryFilter(hosts, this._filter), key).length;
     }
-    if (key.startsWith("network:")) {
-      const network = key.slice("network:".length);
-      hosts = this._applyStatusFilter(hosts, this._filter);
-      return hosts.filter((host) => host.network === network).length;
-    }
-    hosts = this._applyStatusFilter(hosts, key);
-    // Manuelle Pi-hole-Einträge sind eine globale Liste und besitzen nicht
-    // zwingend eine zuverlässige Zuordnung zu einem FRITZ!Box-Netz.
-    if (this._networkFilter && key !== "manuell") {
-      hosts = hosts.filter((host) => host.network === this._networkFilter);
-    }
-    return hosts.length;
+    return this._applyPrimaryFilter(hosts, key).length;
   }
 
   /* -- Aufbau ------------------------------------------------------- */
@@ -811,47 +820,32 @@ class FritzSyncNetworkCard extends HTMLElement {
       container.hidden = true;
       return;
     }
-    const networks = this._config.show_filter_networks ? Array.from(
-      new Map(
-        this._hosts()
-          .filter((host) => host.network)
-          .map((host) => [host.network, host.zone || "Netz"])
-      ).entries()
-    ).filter(([, zone]) => {
-      const guestZone = zone === "Gast" || zone === "Gast/anderes Netz";
-      return guestZone
-        ? this._config.show_filter_guest_network
-        : this._config.show_filter_home_network;
-    }).map(([network, zone]) => ({
-      key: `network:${network}`,
-      label: zone === "Gast" || zone === "Gast/anderes Netz" ? "Gastnetz" : zone,
-      icon: zone === "Heimnetz" ? "mdi:lan" : "mdi:account-network",
-    })) : [];
-    const staticFilters = FILTERS.filter((filter) => this._config[filter.cfg]);
-    this._availableFilters = [...staticFilters, ...networks];
-    if (!staticFilters.some((filter) => filter.key === this._filter)) {
-      this._filter = staticFilters.some((filter) => filter.key === "aktiv")
-        ? "aktiv"
-        : "alle";
+    container.hidden = false;
+    const primary = PRIMARY_FILTERS.filter((filter) => this._config[filter.cfg]);
+    const activity = ACTIVITY_FILTERS.filter((filter) => this._config[filter.cfg]);
+    this._availableFilters = [...primary, ...activity];
+    if (!primary.some((filter) => filter.key === this._filter)) {
+      this._filter = primary.some((filter) => filter.key === "alle")
+        ? "alle" : (primary[0] && primary[0].key) || "alle";
     }
-    if (!this._config.show_filter_networks ||
-        !networks.some((filter) => filter.key === `network:${this._networkFilter}`)) {
-      if (this._networkFilter) {
-        this._networkFilter = "";
-      }
-    }
-    container.innerHTML = this._availableFilters.map((filter) => {
+    if (!activity.some((filter) => filter.key === this._activityFilter)) this._activityFilter = "";
+    const renderGroup = (filters, kind) => filters.map((filter) => {
       const count = this._filterCount(filter.key);
       const newAlert = filter.key === "neu" && count > 0;
+      const pressed = kind === "activity"
+        ? filter.key === this._activityFilter : filter.key === this._filter;
       return `
         <button class="fbn-chip${newAlert ? " fbn-chip-new-alert" : ""}" data-filter="${filter.key}" type="button"
                 ${newAlert ? `title="${count} neue${count === 1 ? "s Gerät" : " Geräte"} bestätigen"` : ""}
-                aria-pressed="${filter.key.startsWith("network:")
-                  ? filter.key.slice("network:".length) === this._networkFilter
-                  : filter.key === this._filter}">
+                aria-pressed="${pressed}">
           <ha-icon icon="${filter.icon}"></ha-icon><span>${escapeHtml(filter.label)} (${count})</span>
         </button>`;
     }).join("");
+    container.innerHTML = `
+      <div class="fbn-filter-group">${renderGroup(primary, "primary")}</div>
+      ${activity.length ? `<div class="fbn-filter-group fbn-activity-group">
+        <span class="fbn-filter-group-label">Status:</span>${renderGroup(activity, "activity")}
+      </div>` : ""}`;
     if (!container.dataset.bound) {
       container.dataset.bound = "1";
       container.addEventListener("click", (event) => {
@@ -944,21 +938,15 @@ class FritzSyncNetworkCard extends HTMLElement {
   /** Setzt den aktiven Filter und aktualisiert Chips, Zusammenfassung, Liste. */
   _setFilter(key) {
     if (!(this._availableFilters || FILTERS).some((filter) => filter.key === key)) return;
-    if (key.startsWith("network:")) {
-      const network = key.slice("network:".length);
-      this._networkFilter = this._networkFilter === network ? "" : network;
-    } else {
+    if (ACTIVITY_FILTERS.some((filter) => filter.key === key)) {
+      this._activityFilter = this._activityFilter === key ? "" : key;
+    } else if (PRIMARY_FILTERS.some((filter) => filter.key === key)) {
       if (key === this._filter) return;
       this._filter = key;
+    } else {
+      return;
     }
-    this.querySelectorAll(".fbn-chip").forEach((chip) => {
-      const chipKey = chip.dataset.filter;
-      if (!chipKey) return;
-      const pressed = chipKey.startsWith("network:")
-        ? chipKey.slice("network:".length) === this._networkFilter
-        : chipKey === this._filter;
-      chip.setAttribute("aria-pressed", String(pressed));
-    });
+    this._buildFilters();
     this._renderSummary();
     this._renderBody();
   }
@@ -1293,9 +1281,10 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
     const state = this._stateObj();
     const attributes = (state && state.attributes) || {};
+    const total = this._listHosts().length;
     const shown = this._filteredHosts().length;
     const parts = [
-      `${attributes.gesamt || 0} Geräte`,
+      `${total} Geräte`,
       `${attributes.aktiv || 0} aktiv`,
     ];
     if (attributes.updates_verfuegbar) {
@@ -1304,7 +1293,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     if (attributes.gesperrt) parts.push(`${attributes.gesperrt} gesperrt`);
     const manual = this._manualPiholeHosts().length;
     if (manual) parts.push(`${manual} manuell`);
-    const filtered = shown !== (attributes.gesamt || 0) ? ` · ${shown} angezeigt` : "";
+    const filtered = shown !== total ? ` · ${shown} angezeigt` : "";
     container.textContent = parts.join(" · ") + filtered;
   }
 
@@ -2118,7 +2107,12 @@ class FritzSyncNetworkCard extends HTMLElement {
         display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
         justify-content: space-between; padding: 8px 16px 4px;
       }
-      .fbn-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+      .fbn-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+      .fbn-filter-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+      .fbn-activity-group {
+        margin-left: 4px; padding-left: 10px; border-left: 1px solid var(--fbn-border);
+      }
+      .fbn-filter-group-label { font-size: .78em; color: var(--secondary-text-color); }
       .fbn-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
       .fbn-export ha-icon { --mdc-icon-size: 17px; width: 17px; height: 17px; color: #43a047; }
       .fbn-chip {
@@ -2415,7 +2409,6 @@ const EDITOR_SCHEMA = [
       { name: "show_summary", selector: { boolean: {} } },
       { name: "show_search", selector: { boolean: {} } },
       { name: "show_pihole_records", selector: { boolean: {} } },
-      { name: "hide_inactive", selector: { boolean: {} } },
       { name: "compact", selector: { boolean: {} } },
       { name: "sticky_name", selector: { boolean: {} } },
       {
@@ -2437,17 +2430,29 @@ const EDITOR_SCHEMA = [
         selector: {
           select: {
             mode: "dropdown",
-            options: FILTERS.map((filter) => ({
+            options: PRIMARY_FILTERS.map((filter) => ({
               value: filter.key,
               label: filter.label,
             })),
           },
         },
       },
+      {
+        name: "default_activity_filter",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [
+              { value: "alle", label: "Alle (aktiv und inaktiv)" },
+              { value: "aktiv", label: "Aktiv" },
+              { value: "inaktiv", label: "Inaktiv" },
+            ],
+          },
+        },
+      },
       { name: "show_filter_all", selector: { boolean: {} } },
       { name: "show_filter_active", selector: { boolean: {} } },
       { name: "show_filter_inactive", selector: { boolean: {} } },
-      { name: "show_filter_guest", selector: { boolean: {} } },
       { name: "show_filter_blocked", selector: { boolean: {} } },
       { name: "show_filter_update", selector: { boolean: {} } },
       { name: "show_filter_new", selector: { boolean: {} } },
@@ -2528,20 +2533,19 @@ const EDITOR_LABELS = {
   show_summary: "Zusammenfassung anzeigen",
   show_search: "Suchfeld anzeigen",
   show_filter: "Filterleiste anzeigen",
-  default_filter: "Standardfilter",
+  default_filter: "Standard-Hauptfilter",
+  default_activity_filter: "Standard Aktiv/Inaktiv",
   show_filter_all: "Filter „Alle“ anzeigen",
   show_filter_active: "Filter „Aktiv“ anzeigen",
   show_filter_inactive: "Filter „Inaktiv“ anzeigen",
-  show_filter_guest: "Filter „Gastgeräte“ anzeigen",
   show_filter_blocked: "Filter „Gesperrt“ anzeigen",
   show_filter_update: "Filter „Update“ anzeigen",
   show_filter_new: "Filter „Neu“ anzeigen",
   show_filter_manual: "Filter „Manuell“ anzeigen",
-  show_filter_home_network: "Netzfilter „Heimnetz“ anzeigen",
-  show_filter_guest_network: "Netzfilter „Gastnetz“ anzeigen",
+  show_filter_home_network: "Filter „LAN“ anzeigen",
+  show_filter_guest_network: "Filter „Gast“ anzeigen",
   show_refresh: "Schaltfläche „Aktualisieren“ anzeigen",
   show_pihole_records: "Manuelle Pi-hole-DNS-Einträge anzeigen",
-  hide_inactive: "Nicht verbundene Geräte ausblenden",
   compact: "Kompakte Zeilen",
   show_details_popup: "Klick öffnet ein Detail-Popup",
   open_device_on_click: "Klick öffnet das Home-Assistant-Gerät",
@@ -2564,10 +2568,10 @@ const EDITOR_HELPERS = {
   show_ha_name: "Zeigt den Gerätenamen aus Home Assistant, sofern das Gerät dort eine MAC-Adresse hinterlegt hat.",
   show_details_popup: "Zeigt beim Antippen alle Felder eines Geräts, auch die auf schmalen Karten ausgeblendeten wie die MAC-Adresse.",
   show_filter: "Schaltet die komplette Filterleiste ein oder aus. Die folgenden Schalter bestimmen die einzelnen Filter.",
-  default_filter: "Dieser Statusfilter ist beim Öffnen oder Neuladen der Karte ausgewählt.",
-  show_filter_guest: "Zeigt alle Geräte, die von der FRITZ!Box als Gastgerät markiert sind – unabhängig von Aktiv/Inaktiv und vom erkannten Netz.",
-  show_filter_home_network: "Grenzt den gewählten Statusfilter zusätzlich auf Geräte im Heimnetz ein.",
-  show_filter_guest_network: "Grenzt den gewählten Statusfilter zusätzlich auf Geräte im Gastnetz ein, zum Beispiel Aktiv + Gastnetz.",
+  default_filter: "Dieser Hauptfilter ist beim Öffnen oder Neuladen der Karte ausgewählt.",
+  default_activity_filter: "Optionaler Aktiv/Inaktiv-Zusatz beim Öffnen. „Alle“ zeigt beide Zustände.",
+  show_filter_home_network: "Alle Geräte im Heimnetz. Lässt sich mit Aktiv oder Inaktiv kombinieren.",
+  show_filter_guest_network: "Alle Geräte im Gastnetz. Lässt sich mit Aktiv oder Inaktiv kombinieren.",
   open_device_on_click: "Wirkt nur, wenn das Detail-Popup ausgeschaltet ist.",
   show_scroll_arrows: "Passen nicht alle Spalten nebeneinander (z. B. auf dem Smartphone), wird die Tabelle waagerecht scrollbar. Diese Pfeile blättern zusätzlich per Klick; wischen geht auch direkt.",
   sticky_name: "Beim waagerechten Blättern bleiben Statuspunkt und Gerätename links stehen.",
