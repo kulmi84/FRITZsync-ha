@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.29";
+const FBN_VERSION = "1.10.30";
 
 // Ueberlebt neu erzeugte Karteninstanzen innerhalb derselben geladenen
 // Lovelace-Seite, selbst wenn localStorage im WebView nicht funktioniert.
