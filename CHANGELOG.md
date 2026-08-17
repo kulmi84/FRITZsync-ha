@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.23
+
+- Navigationsbehandlung aus 1.10.22 vollständig zurückrollen
+- durch das erneute Rendern bei Home-Assistant-Routenwechseln verursachtes weißes Aufblinken beseitigen
+- zuletzt gewählten Status- und Netzfilter pro Karte im Browser speichern
+- gespeicherte Filter beim nächsten Öffnen wiederherstellen
+- konfigurierten Standardfilter als Ausgangswert und bei einer Einstellungsänderung verwenden
+
 ## 1.10.22
 
 - konfigurierten Standardfilter beim Zurückkehren aus einer anderen Dashboard-Ansicht erneut anwenden

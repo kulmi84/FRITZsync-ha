@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.22";
+const FBN_VERSION = "1.10.23";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -382,7 +382,6 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._piholeHiddenRecords = new Set();
     this._busyCount = 0;
     this._columnWidths = {};
-    this._onLocationChanged = () => this._restoreDefaultFilterView();
   }
 
   /* -- Lovelace-Schnittstelle -------------------------------------- */
@@ -392,7 +391,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       throw new Error("Bitte den Sensor mit der Geräteliste auswählen (entity).");
     }
     this._config = withDefaults(config);
-    this._resetDefaultFilter();
+    this._loadSavedFilters();
     try {
       this._columnWidths = JSON.parse(
         localStorage.getItem(`fritzsync-column-widths:${this._config.entity}`) || "{}"
@@ -431,17 +430,10 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   connectedCallback() {
-    // Lovelace behaelt Karten beim Wechsel zwischen Ansichten teilweise als
-    // Instanz im Speicher. setConfig() wird dann beim Zurueckkehren nicht
-    // erneut aufgerufen. Den konfigurierten Startfilter deshalb auch beim
-    // erneuten Verbinden der Karte wiederherstellen.
-    this._restoreDefaultFilterView();
-    window.addEventListener("location-changed", this._onLocationChanged);
     this._observeWidth();
   }
 
   disconnectedCallback() {
-    window.removeEventListener("location-changed", this._onLocationChanged);
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
@@ -459,12 +451,38 @@ class FritzSyncNetworkCard extends HTMLElement {
       : "aktiv";
   }
 
-  _restoreDefaultFilterView() {
+  _filterStorageKey() {
+    return `fritzsync-filters:${this._config.entity}`;
+  }
+
+  _loadSavedFilters() {
     this._resetDefaultFilter();
-    if (!this._built) return;
-    this._buildFilters();
-    this._renderSummary();
-    this._renderBody();
+    this._networkFilter = "";
+    try {
+      const saved = JSON.parse(localStorage.getItem(this._filterStorageKey()) || "null");
+      if (!saved || saved.default_filter !== this._config.default_filter) {
+        this._saveFilters();
+        return;
+      }
+      if (FILTERS.some((filter) => filter.key === saved.filter)) this._filter = saved.filter;
+      this._networkFilter = typeof saved.network === "string" ? saved.network : "";
+    } catch (_error) {
+      this._resetDefaultFilter();
+      this._networkFilter = "";
+    }
+  }
+
+  _saveFilters() {
+    try {
+      localStorage.setItem(this._filterStorageKey(), JSON.stringify({
+        filter: this._filter,
+        network: this._networkFilter,
+        default_filter: this._config.default_filter,
+      }));
+    } catch (_error) {
+      // Private Browsermodi koennen localStorage blockieren; die Karte
+      // funktioniert dann weiterhin mit dem konfigurierten Standardfilter.
+    }
   }
 
   _stateObj() {
@@ -797,8 +815,15 @@ class FritzSyncNetworkCard extends HTMLElement {
       this._filter = staticFilters.some((filter) => filter.key === "aktiv")
         ? "aktiv"
         : "alle";
+      this._saveFilters();
     }
-    if (!this._config.show_filter_networks) this._networkFilter = "";
+    if (!this._config.show_filter_networks ||
+        !networks.some((filter) => filter.key === `network:${this._networkFilter}`)) {
+      if (this._networkFilter) {
+        this._networkFilter = "";
+        this._saveFilters();
+      }
+    }
     container.innerHTML = this._availableFilters.map((filter) => {
       const count = this._filterCount(filter.key);
       const newAlert = filter.key === "neu" && count > 0;
@@ -910,6 +935,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       if (key === this._filter) return;
       this._filter = key;
     }
+    this._saveFilters();
     this.querySelectorAll(".fbn-chip").forEach((chip) => {
       const chipKey = chip.dataset.filter;
       if (!chipKey) return;
