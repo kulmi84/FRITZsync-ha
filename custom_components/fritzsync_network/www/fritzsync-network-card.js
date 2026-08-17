@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.19";
+const FBN_VERSION = "1.10.20";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -649,7 +649,9 @@ class FritzSyncNetworkCard extends HTMLElement {
       return hosts.filter((host) => host.network === network).length;
     }
     hosts = this._applyStatusFilter(hosts, key);
-    if (this._networkFilter) {
+    // Manuelle Pi-hole-Einträge sind eine globale Liste und besitzen nicht
+    // zwingend eine zuverlässige Zuordnung zu einem FRITZ!Box-Netz.
+    if (this._networkFilter && key !== "manuell") {
       hosts = hosts.filter((host) => host.network === this._networkFilter);
     }
     return hosts.length;
