@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.21";
+const FBN_VERSION = "1.10.22";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -382,6 +382,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._piholeHiddenRecords = new Set();
     this._busyCount = 0;
     this._columnWidths = {};
+    this._onLocationChanged = () => this._restoreDefaultFilterView();
   }
 
   /* -- Lovelace-Schnittstelle -------------------------------------- */
@@ -391,9 +392,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       throw new Error("Bitte den Sensor mit der Geräteliste auswählen (entity).");
     }
     this._config = withDefaults(config);
-    this._filter = FILTERS.some((filter) => filter.key === this._config.default_filter)
-      ? this._config.default_filter
-      : "aktiv";
+    this._resetDefaultFilter();
     try {
       this._columnWidths = JSON.parse(
         localStorage.getItem(`fritzsync-column-widths:${this._config.entity}`) || "{}"
@@ -432,10 +431,17 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   connectedCallback() {
+    // Lovelace behaelt Karten beim Wechsel zwischen Ansichten teilweise als
+    // Instanz im Speicher. setConfig() wird dann beim Zurueckkehren nicht
+    // erneut aufgerufen. Den konfigurierten Startfilter deshalb auch beim
+    // erneuten Verbinden der Karte wiederherstellen.
+    this._restoreDefaultFilterView();
+    window.addEventListener("location-changed", this._onLocationChanged);
     this._observeWidth();
   }
 
   disconnectedCallback() {
+    window.removeEventListener("location-changed", this._onLocationChanged);
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
@@ -445,6 +451,21 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   /* -- Daten -------------------------------------------------------- */
+
+  _resetDefaultFilter() {
+    const configured = this._config && this._config.default_filter;
+    this._filter = FILTERS.some((filter) => filter.key === configured)
+      ? configured
+      : "aktiv";
+  }
+
+  _restoreDefaultFilterView() {
+    this._resetDefaultFilter();
+    if (!this._built) return;
+    this._buildFilters();
+    this._renderSummary();
+    this._renderBody();
+  }
 
   _stateObj() {
     if (!this._hass || !this._config.entity) return null;
