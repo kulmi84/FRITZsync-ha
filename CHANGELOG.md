@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.25
+
+- Standardfilter-Auswahl aus dem unzuverlässigen generischen Home-Assistant-Formular lösen
+- eigene direkt gebundene Auswahl im Karteneditor verwenden
+- neuen Standardfilter sofort in die Kartenkonfiguration schreiben
+- zuvor gespeicherte Filterauswahl bei einer bewussten Änderung des Standardfilters verwerfen
+
 ## 1.10.24
 
 - letzte Filterauswahl zusätzlich im geladenen Kartenmodul speichern
