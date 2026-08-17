@@ -4,7 +4,7 @@ Lokale Home-Assistant-Integration für FRITZ!Box-Netzwerkgeräte, Pi-hole-DNS un
 konfigurierbare Dashboard-Tabelle. Geräte lassen sich durchsuchen, filtern, umbenennen,
 aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
-![Version](https://img.shields.io/badge/Version-1.10.22-blue)
+![Version](https://img.shields.io/badge/Version-1.10.23-blue)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)
 ![FRITZ!OS](https://img.shields.io/badge/FRITZ!OS-8.x-E2001A)
@@ -217,9 +217,9 @@ Sensor im Hintergrund neue Daten liefert.
 Die Filterchips lassen sich im Karteneditor einzeln ein- oder ausblenden. Statusfilter
 und Netzfilter sind kombinierbar, beispielsweise `Aktiv` zusammen mit dem Gastnetz.
 Der beim Öffnen beziehungsweise Neuladen vorausgewählte Statusfilter lässt sich dort
-ebenfalls festlegen. Er wird auch nach einem Wechsel zu einer anderen Dashboard-Ansicht
-beim Zurückkehren wieder angewendet. Ein leer gelassener Titel blendet den Kartenkopf
-vollständig aus.
+ebenfalls festlegen. Er wird beim Zurückkehren in die Dashboard-Ansicht erneut angewendet,
+sobald die Karte tatsächlich sichtbar wird. Ein leer gelassener Titel blendet den
+Kartenkopf vollständig aus.
 Neue Geräte besitzen einen eigenen Filter und bleiben markiert, bis sie bestätigt wurden.
 Jeder Filterchip zeigt die Anzahl seiner Treffer in Klammern. Sind unbestätigte Geräte
 vorhanden, wird der Chip `Neu` zusätzlich gelb hervorgehoben.
