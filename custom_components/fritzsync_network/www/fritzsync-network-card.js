@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.22";
+const FBN_VERSION = "1.10.23";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -382,7 +382,8 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._piholeHiddenRecords = new Set();
     this._busyCount = 0;
     this._columnWidths = {};
-    this._onLocationChanged = () => this._restoreDefaultFilterView();
+    this._visibilityObserver = null;
+    this._wasVisible = false;
   }
 
   /* -- Lovelace-Schnittstelle -------------------------------------- */
@@ -431,17 +432,16 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   connectedCallback() {
-    // Lovelace behaelt Karten beim Wechsel zwischen Ansichten teilweise als
-    // Instanz im Speicher. setConfig() wird dann beim Zurueckkehren nicht
-    // erneut aufgerufen. Den konfigurierten Startfilter deshalb auch beim
-    // erneuten Verbinden der Karte wiederherstellen.
-    this._restoreDefaultFilterView();
-    window.addEventListener("location-changed", this._onLocationChanged);
     this._observeWidth();
+    this._observeVisibility();
   }
 
   disconnectedCallback() {
-    window.removeEventListener("location-changed", this._onLocationChanged);
+    if (this._visibilityObserver) {
+      this._visibilityObserver.disconnect();
+      this._visibilityObserver = null;
+    }
+    this._wasVisible = false;
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
@@ -459,8 +459,22 @@ class FritzSyncNetworkCard extends HTMLElement {
       : "aktiv";
   }
 
-  _restoreDefaultFilterView() {
-    this._resetDefaultFilter();
+  _observeVisibility() {
+    if (this._visibilityObserver || typeof IntersectionObserver === "undefined") return;
+    this._visibilityObserver = new IntersectionObserver((entries) => {
+      const visible = entries.some((entry) => entry.isIntersecting);
+      if (visible && !this._wasVisible) this._applyDefaultFilterIfNeeded();
+      this._wasVisible = visible;
+    });
+    this._visibilityObserver.observe(this);
+  }
+
+  _applyDefaultFilterIfNeeded() {
+    const configured = FILTERS.some((filter) => filter.key === this._config.default_filter)
+      ? this._config.default_filter
+      : "aktiv";
+    if (this._filter === configured) return;
+    this._filter = configured;
     if (!this._built) return;
     this._buildFilters();
     this._renderSummary();
