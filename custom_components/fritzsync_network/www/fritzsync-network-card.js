@@ -17,11 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.30";
-
-// Ueberlebt neu erzeugte Karteninstanzen innerhalb derselben geladenen
-// Lovelace-Seite, selbst wenn localStorage im WebView nicht funktioniert.
-const FILTER_MEMORY = new Map();
+const FBN_VERSION = "1.10.31";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -63,7 +59,10 @@ const CONFIG_DEFAULTS = {
   show_filter_update: true,
   show_filter_new: true,
   show_filter_manual: true,
+  // Legacy-Hauptschalter bleibt fuer bestehende Karten erhalten.
   show_filter_networks: true,
+  show_filter_home_network: true,
+  show_filter_guest_network: true,
   show_refresh: true,
   show_pihole_records: true,
   hide_inactive: false,
@@ -128,7 +127,7 @@ const FILTERS = [
   { key: "alle", cfg: "show_filter_all", label: "Alle", icon: "mdi:format-list-bulleted" },
   { key: "aktiv", cfg: "show_filter_active", label: "Aktiv", icon: "mdi:lan-connect" },
   { key: "inaktiv", cfg: "show_filter_inactive", label: "Inaktiv", icon: "mdi:lan-disconnect" },
-  { key: "gast", cfg: "show_filter_guest", label: "Gast", icon: "mdi:account-question" },
+  { key: "gast", cfg: "show_filter_guest", label: "Gastgeräte", icon: "mdi:account-question" },
   { key: "gesperrt", cfg: "show_filter_blocked", label: "Gesperrt", icon: "mdi:web-off" },
   { key: "update", cfg: "show_filter_update", label: "Update", icon: "mdi:package-down" },
   { key: "neu", cfg: "show_filter_new", label: "Neu", icon: "mdi:new-box" },
@@ -395,7 +394,16 @@ class FritzSyncNetworkCard extends HTMLElement {
       throw new Error("Bitte den Sensor mit der Geräteliste auswählen (entity).");
     }
     this._config = withDefaults(config);
-    this._loadSavedFilters();
+    // Der Standardfilter stammt ausschliesslich aus der Kartenkonfiguration.
+    // Laufzeitfilter gelten nur fuer die aktuelle Karteninstanz und koennen
+    // deshalb nach einem Neuladen keinen alten Standard mehr ueberschreiben.
+    this._resetDefaultFilter();
+    this._networkFilter = "";
+    try {
+      localStorage.removeItem(`fritzsync-filters:${this._config.entity}`);
+    } catch (_error) {
+      // Der obsolete Laufzeit-Cache ist fuer die Karte nicht mehr relevant.
+    }
     try {
       this._columnWidths = JSON.parse(
         localStorage.getItem(`fritzsync-column-widths:${this._config.entity}`) || "{}"
@@ -413,7 +421,17 @@ class FritzSyncNetworkCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const previousState = this._hass && this._config.entity
+      ? this._hass.states[this._config.entity]
+      : null;
+    const nextState = hass && this._config.entity
+      ? hass.states[this._config.entity]
+      : null;
     this._hass = hass;
+    // Home Assistant setzt `hass` bei jeder beliebigen Zustandsaenderung neu.
+    // Die grosse Geraetetabelle muss aber nur aktualisiert werden, wenn sich
+    // ihr eigener Sensor geaendert hat oder die Karte neu aufgebaut wird.
+    if (this._built && previousState === nextState) return;
     this._update();
   }
 
@@ -453,51 +471,6 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._filter = FILTERS.some((filter) => filter.key === configured)
       ? configured
       : "aktiv";
-  }
-
-  _filterStorageKey() {
-    return `fritzsync-filters:${this._config.entity}`;
-  }
-
-  _loadSavedFilters() {
-    this._resetDefaultFilter();
-    this._networkFilter = "";
-    try {
-      const key = this._filterStorageKey();
-      const saved = FILTER_MEMORY.get(key) ||
-        JSON.parse(localStorage.getItem(key) || "null");
-      // Der in der Kartenkonfiguration hinterlegte Standard ist beim
-      // Erzeugen/Neuladen der Karte verbindlich. Ein zuvor angeklickter
-      // Laufzeitfilter darf ihn nicht wieder ueberschreiben. Nur der
-      // unabhaengige Netzfilter kann innerhalb derselben Konfiguration
-      // wiederhergestellt werden.
-      if (saved && saved.default_filter === this._config.default_filter) {
-        this._networkFilter = typeof saved.network === "string" ? saved.network : "";
-      } else {
-        FILTER_MEMORY.delete(key);
-        localStorage.removeItem(key);
-      }
-      this._saveFilters();
-    } catch (_error) {
-      this._resetDefaultFilter();
-      this._networkFilter = "";
-      this._saveFilters();
-    }
-  }
-
-  _saveFilters() {
-    const state = {
-      filter: this._filter,
-      network: this._networkFilter,
-      default_filter: this._config.default_filter,
-    };
-    FILTER_MEMORY.set(this._filterStorageKey(), state);
-    try {
-      localStorage.setItem(this._filterStorageKey(), JSON.stringify(state));
-    } catch (_error) {
-      // Private Browsermodi koennen localStorage blockieren; die Karte
-      // funktioniert dann weiterhin mit dem konfigurierten Standardfilter.
-    }
   }
 
   _stateObj() {
@@ -819,9 +792,14 @@ class FritzSyncNetworkCard extends HTMLElement {
           .filter((host) => host.network)
           .map((host) => [host.network, host.zone || "Netz"])
       ).entries()
-    ).map(([network, zone]) => ({
+    ).filter(([, zone]) => {
+      const guestZone = zone === "Gast" || zone === "Gast/anderes Netz";
+      return guestZone
+        ? this._config.show_filter_guest_network
+        : this._config.show_filter_home_network;
+    }).map(([network, zone]) => ({
       key: `network:${network}`,
-      label: zone === "Gast/anderes Netz" ? "Gast" : zone,
+      label: zone === "Gast" || zone === "Gast/anderes Netz" ? "Gastnetz" : zone,
       icon: zone === "Heimnetz" ? "mdi:lan" : "mdi:account-network",
     })) : [];
     const staticFilters = FILTERS.filter((filter) => this._config[filter.cfg]);
@@ -830,13 +808,11 @@ class FritzSyncNetworkCard extends HTMLElement {
       this._filter = staticFilters.some((filter) => filter.key === "aktiv")
         ? "aktiv"
         : "alle";
-      this._saveFilters();
     }
     if (!this._config.show_filter_networks ||
         !networks.some((filter) => filter.key === `network:${this._networkFilter}`)) {
       if (this._networkFilter) {
         this._networkFilter = "";
-        this._saveFilters();
       }
     }
     container.innerHTML = this._availableFilters.map((filter) => {
@@ -950,7 +926,6 @@ class FritzSyncNetworkCard extends HTMLElement {
       if (key === this._filter) return;
       this._filter = key;
     }
-    this._saveFilters();
     this.querySelectorAll(".fbn-chip").forEach((chip) => {
       const chipKey = chip.dataset.filter;
       if (!chipKey) return;
@@ -2414,16 +2389,6 @@ const EDITOR_SCHEMA = [
     schema: [
       { name: "show_summary", selector: { boolean: {} } },
       { name: "show_search", selector: { boolean: {} } },
-      { name: "show_filter", selector: { boolean: {} } },
-      { name: "show_filter_all", selector: { boolean: {} } },
-      { name: "show_filter_active", selector: { boolean: {} } },
-      { name: "show_filter_inactive", selector: { boolean: {} } },
-      { name: "show_filter_guest", selector: { boolean: {} } },
-      { name: "show_filter_blocked", selector: { boolean: {} } },
-      { name: "show_filter_update", selector: { boolean: {} } },
-      { name: "show_filter_new", selector: { boolean: {} } },
-      { name: "show_filter_manual", selector: { boolean: {} } },
-      { name: "show_filter_networks", selector: { boolean: {} } },
       { name: "show_refresh", selector: { boolean: {} } },
       { name: "show_pihole_records", selector: { boolean: {} } },
       { name: "hide_inactive", selector: { boolean: {} } },
@@ -2438,6 +2403,38 @@ const EDITOR_SCHEMA = [
         name: "max_rows",
         selector: { number: { min: 0, max: 500, mode: "box" } },
       },
+    ],
+  },
+  {
+    type: "expandable",
+    name: "filter",
+    title: "Filter",
+    flatten: true,
+    icon: "mdi:filter-variant",
+    schema: [
+      { name: "show_filter", selector: { boolean: {} } },
+      {
+        name: "default_filter",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: FILTERS.map((filter) => ({
+              value: filter.key,
+              label: filter.label,
+            })),
+          },
+        },
+      },
+      { name: "show_filter_all", selector: { boolean: {} } },
+      { name: "show_filter_active", selector: { boolean: {} } },
+      { name: "show_filter_inactive", selector: { boolean: {} } },
+      { name: "show_filter_guest", selector: { boolean: {} } },
+      { name: "show_filter_blocked", selector: { boolean: {} } },
+      { name: "show_filter_update", selector: { boolean: {} } },
+      { name: "show_filter_new", selector: { boolean: {} } },
+      { name: "show_filter_manual", selector: { boolean: {} } },
+      { name: "show_filter_home_network", selector: { boolean: {} } },
+      { name: "show_filter_guest_network", selector: { boolean: {} } },
     ],
   },
   {
@@ -2497,15 +2494,17 @@ const EDITOR_LABELS = {
   show_summary: "Zusammenfassung anzeigen",
   show_search: "Suchfeld anzeigen",
   show_filter: "Filterleiste anzeigen",
+  default_filter: "Standardfilter",
   show_filter_all: "Filter „Alle“ anzeigen",
   show_filter_active: "Filter „Aktiv“ anzeigen",
   show_filter_inactive: "Filter „Inaktiv“ anzeigen",
-  show_filter_guest: "Filter „Gast“ anzeigen",
+  show_filter_guest: "Filter „Gastgeräte“ anzeigen",
   show_filter_blocked: "Filter „Gesperrt“ anzeigen",
   show_filter_update: "Filter „Update“ anzeigen",
   show_filter_new: "Filter „Neu“ anzeigen",
   show_filter_manual: "Filter „Manuell“ anzeigen",
-  show_filter_networks: "Netzfilter „Heimnetz/Gast“ anzeigen",
+  show_filter_home_network: "Netzfilter „Heimnetz“ anzeigen",
+  show_filter_guest_network: "Netzfilter „Gastnetz“ anzeigen",
   show_refresh: "Schaltfläche „Aktualisieren“ anzeigen",
   show_pihole_records: "Manuelle Pi-hole-DNS-Einträge anzeigen",
   hide_inactive: "Nicht verbundene Geräte ausblenden",
@@ -2531,6 +2530,10 @@ const EDITOR_HELPERS = {
   show_ha_name: "Zeigt den Gerätenamen aus Home Assistant, sofern das Gerät dort eine MAC-Adresse hinterlegt hat.",
   show_details_popup: "Zeigt beim Antippen alle Felder eines Geräts, auch die auf schmalen Karten ausgeblendeten wie die MAC-Adresse.",
   show_filter: "Schaltet die komplette Filterleiste ein oder aus. Die folgenden Schalter bestimmen die einzelnen Filter.",
+  default_filter: "Dieser Statusfilter ist beim Öffnen oder Neuladen der Karte ausgewählt.",
+  show_filter_guest: "Zeigt alle Geräte, die von der FRITZ!Box als Gastgerät markiert sind – unabhängig von Aktiv/Inaktiv und vom erkannten Netz.",
+  show_filter_home_network: "Grenzt den gewählten Statusfilter zusätzlich auf Geräte im Heimnetz ein.",
+  show_filter_guest_network: "Grenzt den gewählten Statusfilter zusätzlich auf Geräte im Gastnetz ein, zum Beispiel Aktiv + Gastnetz.",
   open_device_on_click: "Wirkt nur, wenn das Detail-Popup ausgeschaltet ist.",
   show_scroll_arrows: "Passen nicht alle Spalten nebeneinander (z. B. auf dem Smartphone), wird die Tabelle waagerecht scrollbar. Diese Pfeile blättern zusätzlich per Klick; wischen geht auch direkt.",
   sticky_name: "Beim waagerechten Blättern bleiben Statuspunkt und Gerätename links stehen.",
@@ -2574,15 +2577,6 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
         <style>${this._styles()}</style>
         <div class="fbn-editor">
           <div class="fbn-form"></div>
-          <div class="fbn-default-filter-field">
-            <span>Standardfilter</span>
-            <ha-select class="fbn-default-filter-select" label="Standardfilter">
-              ${FILTERS.map((filter) =>
-                `<mwc-list-item value="${filter.key}">${escapeHtml(filter.label)}</mwc-list-item>`
-              ).join("")}
-            </ha-select>
-            <small>Dieser Statusfilter ist beim Öffnen oder Neuladen der Karte ausgewählt.</small>
-          </div>
           <details class="fbn-order-editor">
             <summary>
               <ha-icon icon="mdi:swap-vertical"></ha-icon>
@@ -2622,43 +2616,6 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
       });
       this.querySelector(".fbn-form").appendChild(this._form);
 
-      this._defaultFilterSelect = this.querySelector(".fbn-default-filter-select");
-      const saveDefaultFilter = (selectedValue = "") => {
-        const defaultFilter = typeof selectedValue === "string" && selectedValue
-          ? selectedValue
-          : this._defaultFilterSelect.value;
-        if (!FILTERS.some((filter) => filter.key === defaultFilter)) return;
-        if (this._config.default_filter === defaultFilter) return;
-        const entity = this._config.entity || "";
-        const storageKey = `fritzsync-filters:${entity}`;
-        FILTER_MEMORY.delete(storageKey);
-        try {
-          localStorage.removeItem(storageKey);
-        } catch (_error) {
-          // Der neue Konfigurationswert funktioniert auch ohne localStorage.
-        }
-        this._config = withDefaults({ ...this._config, default_filter: defaultFilter });
-        this._fire(this._config);
-      };
-      // Home-Assistant-Apps/WebViews melden die Auswahl je nach Plattform
-      // bereits ueber "input". "change" bleibt als Browser-Fallback aktiv.
-      this._defaultFilterSelect.addEventListener("input", saveDefaultFilter);
-      this._defaultFilterSelect.addEventListener("change", saveDefaultFilter);
-      // Bei ha-select wird `value` erst nach dem `selected`-Ereignis
-      // aktualisiert. Den Wert deshalb direkt vom angeklickten Eintrag
-      // uebernehmen; der spaetere selected-Fallback liest ihn im naechsten
-      // Microtask nochmals aus.
-      this._defaultFilterSelect.addEventListener("click", (event) => {
-        const item = event.target.closest && event.target.closest("mwc-list-item[value]");
-        if (!item) return;
-        const value = item.value || item.getAttribute("value") || "";
-        this._defaultFilterSelect.value = value;
-        saveDefaultFilter(value);
-      });
-      this._defaultFilterSelect.addEventListener("selected", () => {
-        queueMicrotask(() => saveDefaultFilter());
-      });
-
       this.querySelector(".fbn-reset").addEventListener("click", () => {
         // Der Fokusschutz wird hier bewusst uebergangen: ein Klick auf
         // "Zuruecksetzen" ist eine ausdrueckliche Nutzerentscheidung.
@@ -2681,9 +2638,6 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
 
     if (this._hass) this._form.hass = this._hass;
     this._form.data = this._config;
-    if (this._defaultFilterSelect) {
-      this._defaultFilterSelect.value = this._config.default_filter || "aktiv";
-    }
     this._renderColumnOrder();
     this._renderColors();
   }
@@ -2811,13 +2765,6 @@ class FritzSyncNetworkCardEditor extends HTMLElement {
   _styles() {
     return `
       .fbn-editor { display: flex; flex-direction: column; gap: 16px; }
-      .fbn-default-filter-field {
-        display: flex; flex-direction: column; gap: 6px; padding: 0 16px;
-        color: var(--primary-text-color);
-      }
-      .fbn-default-filter-field > span { font-size: 12px; color: var(--secondary-text-color); }
-      .fbn-default-filter-field ha-select { width: 100%; }
-      .fbn-default-filter-field small { color: var(--secondary-text-color); line-height: 1.35; }
       .fbn-order-editor, .fbn-color-editor {
         border: 1px solid var(--divider-color); border-radius: 6px; padding: 0;
       }
