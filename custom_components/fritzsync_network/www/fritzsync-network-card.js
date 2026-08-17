@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.18";
+const FBN_VERSION = "1.10.19";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -580,6 +580,27 @@ class FritzSyncNetworkCard extends HTMLElement {
     return this._config.sticky_name && keys[0] === "status" && keys[1] === "name";
   }
 
+  _applyStatusFilter(hosts, filter) {
+    switch (filter) {
+      case "aktiv":
+        return hosts.filter((host) => !host._pihole && host.active);
+      case "inaktiv":
+        return hosts.filter((host) => !host._pihole && !host.active);
+      case "gast":
+        return hosts.filter((host) => host.guest);
+      case "gesperrt":
+        return hosts.filter((host) => !host._pihole && host.blocked);
+      case "update":
+        return hosts.filter((host) => !host._pihole && host.update_available);
+      case "neu":
+        return hosts.filter((host) => !host._pihole && host.is_new);
+      case "manuell":
+        return hosts.filter((host) => host._pihole);
+      default:
+        return hosts;
+    }
+  }
+
   _filteredHosts() {
     const search = this._search.trim().toLowerCase();
     let hosts = this._listHosts();
@@ -588,31 +609,7 @@ class FritzSyncNetworkCard extends HTMLElement {
       hosts = hosts.filter((host) => host._pihole || host.active);
     }
 
-    switch (this._filter) {
-      case "aktiv":
-        hosts = hosts.filter((host) => host._pihole || host.active);
-        break;
-      case "inaktiv":
-        hosts = hosts.filter((host) => !host._pihole && !host.active);
-        break;
-      case "gast":
-        hosts = hosts.filter((host) => host.guest);
-        break;
-      case "gesperrt":
-        hosts = hosts.filter((host) => host.blocked);
-        break;
-      case "update":
-        hosts = hosts.filter((host) => host.update_available);
-        break;
-      case "neu":
-        hosts = hosts.filter((host) => host.is_new);
-        break;
-      case "manuell":
-        hosts = hosts.filter((host) => host._pihole);
-        break;
-      default:
-        break;
-    }
+    hosts = this._applyStatusFilter(hosts, this._filter);
 
     if (this._networkFilter) {
       hosts = hosts.filter((host) => host.network === this._networkFilter);
@@ -640,7 +637,7 @@ class FritzSyncNetworkCard extends HTMLElement {
     return limit > 0 ? sorted.slice(0, limit) : sorted;
   }
 
-  /** Anzahl der Zeilen, die ein Filter ohne Suche oder zweiten Netzfilter trifft. */
+  /** Anzahl der Zeilen eines Filters in Kombination mit dem jeweils anderen Filter. */
   _filterCount(key) {
     let hosts = this._listHosts();
     if (this._config.hide_inactive) {
@@ -648,26 +645,14 @@ class FritzSyncNetworkCard extends HTMLElement {
     }
     if (key.startsWith("network:")) {
       const network = key.slice("network:".length);
+      hosts = this._applyStatusFilter(hosts, this._filter);
       return hosts.filter((host) => host.network === network).length;
     }
-    switch (key) {
-      case "aktiv":
-        return hosts.filter((host) => host._pihole || host.active).length;
-      case "inaktiv":
-        return hosts.filter((host) => !host._pihole && !host.active).length;
-      case "gast":
-        return hosts.filter((host) => host.guest).length;
-      case "gesperrt":
-        return hosts.filter((host) => host.blocked).length;
-      case "update":
-        return hosts.filter((host) => host.update_available).length;
-      case "neu":
-        return hosts.filter((host) => host.is_new).length;
-      case "manuell":
-        return hosts.filter((host) => host._pihole).length;
-      default:
-        return hosts.length;
+    hosts = this._applyStatusFilter(hosts, key);
+    if (this._networkFilter) {
+      hosts = hosts.filter((host) => host.network === this._networkFilter);
     }
+    return hosts.length;
   }
 
   /* -- Aufbau ------------------------------------------------------- */
