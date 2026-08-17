@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.19
+
+- `Aktiv` ausschließlich als aktuell von der FRITZ!Box verbunden gemeldete Geräte zählen
+- manuelle Pi-hole-DNS-Einträge nicht mehr fälschlich in den Aktiv-Zähler aufnehmen
+- Trefferzahlen von Heimnetz und Gast mit dem gewählten Statusfilter kombinieren
+- Statusfilterzahlen umgekehrt mit dem gewählten Netzfilter kombinieren
+
 ## 1.10.18
 
 - mehrere verschachtelte FRITZ!OS-netDev-Zeilen derselben IPv4 zu genau einem Gerät zusammenführen
