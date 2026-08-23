@@ -37,6 +37,13 @@ def fqdn(name: str, domain: str) -> str:
     return f"{label}.{suffix}"
 
 
+def managed_record(ip: str, name: str, domain: str) -> str:
+    """Erzeugt einen verwalteten Pi-hole-Eintrag mit Kurzname und FQDN."""
+    label = dns_name(name)
+    full_name = fqdn(name, domain)
+    return normalize_record(ip, f"{label} {full_name}")
+
+
 def records_from_response(payload: object) -> list[str]:
     """Liest dns.hosts aus der Antwort von GET /api/config/dns/hosts."""
     if not isinstance(payload, dict):
@@ -97,6 +104,43 @@ def rename_candidates(
         if exact_name or same_device_ip:
             result.append(record)
     return result
+
+
+def _merged_managed_record(
+    existing: str, desired: str, remove_names: set[str] | None = None
+) -> str:
+    """Ersetzt verwaltete Namen und behaelt vorhandene Zusatz-Aliase bei."""
+    old_parts = existing.lower().split()
+    desired_parts = desired.lower().split()
+    if len(old_parts) < 2 or len(desired_parts) < 2:
+        return desired
+
+    removed = {name.lower().rstrip(".") for name in (remove_names or set())}
+    names = list(desired_parts[1:])
+    for name in old_parts[1:]:
+        normalized = name.lower().rstrip(".")
+        if normalized in removed or normalized in names:
+            continue
+        names.append(normalized)
+    return normalize_record(desired_parts[0], " ".join(names))
+
+
+def _expand_managed_record(record: str, domain: str) -> str:
+    """Ergaenzt bei einem alten FQDN-only-Eintrag automatisch den Kurznamen."""
+    normalized = " ".join(str(record or "").lower().split())
+    parts = normalized.split()
+    if len(parts) != 2:
+        return normalized
+
+    suffix = "." + str(domain or "").strip().strip(".").lower()
+    full_name = parts[1]
+    if not suffix or not full_name.endswith(suffix):
+        return normalized
+
+    short = full_name[: -len(suffix)].rstrip(".")
+    if not short or "." in short:
+        return normalized
+    return normalize_record(parts[0], f"{short} {full_name}")
 
 
 class PiholeClient:
@@ -226,8 +270,6 @@ class PiholeClient:
                     f"/config/dns/hosts/{quote(desired, safe='')}?restart=true",
                 )
             except Exception:
-                # Best effort rollback, damit ein Übertragungsfehler den alten
-                # DNS-Eintrag nicht still verschwinden lässt.
                 self._request(
                     session, "PUT",
                     f"/config/dns/hosts/{quote(old, safe='')}?restart=true",
@@ -239,8 +281,11 @@ class PiholeClient:
 
     def sync_all(self, desired_records: list[str]) -> dict[str, int]:
         """Gleicht alle übergebenen Geräte mit lokalen Pi-hole-DNS-Zeilen ab."""
-        desired = list(dict.fromkeys(" ".join(item.split()).lower() for item in desired_records))
-        desired = [item for item in desired if len(item.split()) >= 2]
+        desired = [
+            _expand_managed_record(item, self.domain)
+            for item in desired_records
+        ]
+        desired = list(dict.fromkeys(item for item in desired if len(item.split()) >= 2))
         desired_ips = {item.split()[0] for item in desired}
         session = self._login()
         try:
@@ -250,26 +295,37 @@ class PiholeClient:
             deletes: list[str] = []
             adds: list[str] = []
             suffix = "." + self.domain.strip().strip(".").lower()
+            existing_lower = {record.lower() for record in records}
+
             for target in desired:
                 parts = target.split()
                 ip, names = parts[0], set(parts[1:])
+                target_fqdns = {name for name in names if name.endswith(suffix)}
+                replacement = target
+
                 for record in records:
                     old_parts = record.lower().split()
                     if len(old_parts) < 2 or record in deletes or record.lower() == target:
                         continue
                     old_names = set(old_parts[1:])
-                    same_device = old_parts[0] == ip and any(
-                        name.endswith(suffix) for name in old_names
+                    same_device = (
+                        old_parts[0] == ip
+                        and bool(target_fqdns.intersection(old_names))
                     )
                     name_conflict = (
                         bool(names.intersection(old_names))
                         and old_parts[0] not in desired_ips
                     )
-                    if same_device or name_conflict:
+                    if same_device:
+                        replacement = _merged_managed_record(record, replacement)
                         deletes.append(record)
-                if target not in {record.lower() for record in records}:
-                    adds.append(target)
+                    elif name_conflict:
+                        deletes.append(record)
 
+                if replacement.lower() not in existing_lower:
+                    adds.append(replacement)
+
+            adds = list(dict.fromkeys(adds))
             operations = [("DELETE", item) for item in deletes] + [
                 ("PUT", item) for item in adds
             ]
@@ -284,13 +340,15 @@ class PiholeClient:
             self._logout(session)
 
     def sync_rename(self, ip: str, old_name: str, new_name: str) -> str:
-        """Ersetzt nur den exakten alten lokalen DNS-Namen."""
+        """Ersetzt den alten lokalen DNS-Namen durch Kurzname und FQDN."""
         ip = str(ip or "").strip()
         if not ip:
             raise PiholeApiError("Das Gerät besitzt keine IP-Adresse")
+        old_short = dns_name(old_name)
         old_fqdn = fqdn(old_name, self.domain)
+        new_short = dns_name(new_name)
         new_fqdn = fqdn(new_name, self.domain)
-        desired = f"{ip} {new_fqdn}"
+        desired = managed_record(ip, new_name, self.domain)
 
         session = self._login()
         try:
@@ -300,16 +358,24 @@ class PiholeClient:
                 return desired
 
             old_records = rename_candidates(records, ip, old_fqdn, self.domain)
+            desired_names = {new_short, new_fqdn}
             conflicting = [
                 record for record in records
                 if len(record.split()) >= 2
-                and new_fqdn in record.split()[1:]
+                and desired_names.intersection(
+                    {name.lower().rstrip('.') for name in record.split()[1:]}
+                )
                 and record != desired
                 and record not in old_records
             ]
             if conflicting:
                 raise PiholeApiError(
                     f"DNS-Name {new_fqdn} ist bereits einer anderen IP zugeordnet"
+                )
+
+            for record in old_records:
+                desired = _merged_managed_record(
+                    record, desired, {old_short, old_fqdn}
                 )
 
             for record in old_records:
