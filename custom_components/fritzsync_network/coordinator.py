@@ -48,7 +48,7 @@ from .hosts import (
     resolve_ptr_map,
     summarize,
 )
-from .pihole import PiholeApiError, PiholeClient, fqdn, split_record
+from .pihole import PiholeApiError, PiholeClient, fqdn, managed_record, split_record
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -321,7 +321,16 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for host in hosts:
             try:
                 if host.get("ip") and host.get("name"):
-                    managed.add(f"{host['ip']} {fqdn(str(host['name']), domain)}")
+                    # Neue Form: Kurzname + FQDN. Die alte FQDN-only-Form
+                    # bleibt bis zum nächsten Gesamtabgleich ebenfalls verwaltet.
+                    managed.add(
+                        managed_record(
+                            str(host["ip"]), str(host["name"]), domain
+                        ).lower()
+                    )
+                    managed.add(
+                        f"{host['ip']} {fqdn(str(host['name']), domain)}".lower()
+                    )
             except PiholeApiError:
                 continue
         pihole_entries = []
