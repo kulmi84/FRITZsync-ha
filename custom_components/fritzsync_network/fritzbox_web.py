@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from html.parser import HTMLParser
 import ipaddress
 import time
 import xml.etree.ElementTree as ET
@@ -11,6 +12,100 @@ from typing import Any
 
 class FritzBoxWebError(RuntimeError):
     """Fehler beim Zugriff auf die lokale FRITZ!Box-WebUI."""
+
+
+class _AccessProfileParser(HTMLParser):
+    """Liest Geräte und Profile aus dem HTML-Fragment der Kindersicherung."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.devices: list[dict[str, str]] = []
+        self.profiles: dict[str, str] = {}
+        self._in_devices = False
+        self._table_depth = 0
+        self._row: dict[str, str] | None = None
+        self._cell_index = -1
+        self._cell_text: list[str] = []
+        self._profile_select = False
+        self._option_value = ""
+        self._option_selected = False
+        self._option_text: list[str] = []
+
+    @staticmethod
+    def _attrs(attrs: list[tuple[str, str | None]]) -> dict[str, str]:
+        return {str(key): str(value or "") for key, value in attrs}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = self._attrs(attrs)
+        if tag == "table":
+            if self._in_devices:
+                self._table_depth += 1
+            elif values.get("id") == "uiDevices":
+                self._in_devices = True
+                self._table_depth = 1
+            return
+        if not self._in_devices:
+            return
+        if tag == "tr":
+            self._row = {
+                "name": "", "device_id": "", "profile_id": "",
+                "block_id": "", "blocked": "",
+            }
+            self._cell_index = -1
+            return
+        if self._row is None:
+            return
+        if tag == "td":
+            self._cell_index += 1
+            self._cell_text = []
+            if self._cell_index == 0 and values.get("title"):
+                self._row["name"] = values["title"].strip()
+        elif tag == "select" and values.get("name", "").startswith("profile:"):
+            self._profile_select = True
+            self._row["device_id"] = values["name"].split(":", 1)[1].strip()
+        elif tag == "option" and self._profile_select:
+            self._option_value = values.get("value", "").strip()
+            self._option_selected = "selected" in values
+            self._option_text = []
+        elif tag == "a" and values.get("data-uid") and "data-blocked" in values:
+            self._row["block_id"] = values["data-uid"].strip()
+            self._row["blocked"] = values["data-blocked"].strip().lower()
+
+    def handle_data(self, data: str) -> None:
+        if not self._in_devices or self._row is None:
+            return
+        if self._option_value:
+            self._option_text.append(data)
+        elif self._cell_index == 0:
+            self._cell_text.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self._in_devices:
+            return
+        if tag == "option" and self._option_value:
+            name = " ".join("".join(self._option_text).split())
+            if name:
+                self.profiles[self._option_value] = name
+            if self._option_selected and self._row is not None:
+                self._row["profile_id"] = self._option_value
+            self._option_value = ""
+            self._option_selected = False
+            self._option_text = []
+        elif tag == "select":
+            self._profile_select = False
+        elif tag == "td" and self._row is not None and self._cell_index == 0:
+            if not self._row["name"]:
+                self._row["name"] = " ".join("".join(self._cell_text).split())
+        elif tag == "tr" and self._row is not None:
+            if self._row["device_id"] and self._row["name"]:
+                self.devices.append(self._row)
+            self._row = None
+            self._cell_index = -1
+        elif tag == "table":
+            self._table_depth -= 1
+            if self._table_depth <= 0:
+                self._in_devices = False
+                self._table_depth = 0
 
 
 def _truth(value: Any) -> bool | None:
@@ -189,6 +284,138 @@ class FritzBoxWebClient:
                     walk(item)
         walk(payload)
         return found
+
+    def access_profiles(self) -> dict[str, Any]:
+        """Liest Profile und Gerätezuordnungen aus der Kindersicherungsseite."""
+        if not self.sid:
+            self.login()
+        response = self.session.post(
+            f"{self.base}/data.lua",
+            data={
+                "xhr": 1,
+                "sid": self.sid,
+                "cancel": "",
+                "oldpage": "/internet/kids_userlist.lua",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        parser = _AccessProfileParser()
+        parser.feed(response.text)
+        if not parser.profiles:
+            raise FritzBoxWebError(
+                "FRITZ!Box lieferte keine Zugangsprofile. "
+                "Die Kindersicherungsseite ist möglicherweise nicht verfügbar."
+            )
+        return {"profiles": parser.profiles, "devices": parser.devices}
+
+    @staticmethod
+    def _access_profile_device(
+        snapshot: dict[str, Any], uid: str, name: str
+    ) -> dict[str, str]:
+        """Ordnet eine Profilzeile ohne Raten einem netDev-Gerät zu."""
+        devices = list(snapshot.get("devices") or [])
+        exact = [
+            item for item in devices
+            if item.get("device_id") == uid or item.get("block_id") == uid
+        ]
+        if len(exact) == 1:
+            return exact[0]
+        named = [
+            item for item in devices
+            if str(item.get("name") or "").strip().casefold() == name.strip().casefold()
+        ]
+        if len(named) == 1:
+            return named[0]
+        if len(named) > 1:
+            raise FritzBoxWebError(
+                f"Zugangsprofil für „{name}“ ist wegen mehrfach vorkommendem Namen nicht eindeutig"
+            )
+        raise FritzBoxWebError(f"Gerät „{name}“ wurde in der Kindersicherung nicht gefunden")
+
+    def set_access_profile(self, mac: str, profile_id: str) -> str:
+        """Setzt ein Zugangsprofil und bestätigt die Änderung durch Rücklesen."""
+        device = self.device(mac)
+        if not device:
+            raise FritzBoxWebError(f"Gerät {mac} wurde in der FRITZ!Box-WebUI nicht gefunden")
+        uid = str(device.get("UID") or device.get("uid") or "").strip()
+        name = webui_name(device)
+        if not uid or not name:
+            raise FritzBoxWebError(f"FRITZ!Box lieferte keine eindeutige Gerätekennung für {mac}")
+
+        snapshot = self.access_profiles()
+        profiles = dict(snapshot.get("profiles") or {})
+        if profile_id not in profiles:
+            raise FritzBoxWebError(f"Unbekanntes Zugangsprofil: {profile_id}")
+        profile_device = self._access_profile_device(snapshot, uid, name)
+        form_device_id = str(profile_device["device_id"])
+
+        response = self.session.post(
+            f"{self.base}/data.lua",
+            data={
+                "xhr": 1,
+                "sid": self.sid,
+                "apply": "",
+                "oldpage": "/internet/kids_userlist.lua",
+                f"profile:{form_device_id}": profile_id,
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        actual = ""
+        for delay in (0.5, 1.0, 1.5, 2.0, 3.0):
+            time.sleep(delay)
+            verified = self.access_profiles()
+            verified_device = self._access_profile_device(verified, uid, name)
+            actual = str(verified_device.get("profile_id") or "")
+            if actual == profile_id:
+                return str(profiles[profile_id])
+        raise FritzBoxWebError(
+            "FRITZ!Box hat das Zugangsprofil nicht bestätigt "
+            f"(gemeldet: {profiles.get(actual, actual) or 'leer'})"
+        )
+
+    def set_internet_block(self, mac: str, blocked: bool) -> None:
+        """Setzt die direkte FRITZ!-Gerätesperre und bestätigt sie durch Rücklesen."""
+        device = self.device(mac)
+        if not device:
+            raise FritzBoxWebError(f"Gerät {mac} wurde in der FRITZ!Box-WebUI nicht gefunden")
+        uid = str(device.get("UID") or device.get("uid") or "").strip()
+        name = webui_name(device)
+        if not uid or not name:
+            raise FritzBoxWebError(f"FRITZ!Box lieferte keine eindeutige Gerätekennung für {mac}")
+
+        snapshot = self.access_profiles()
+        profile_device = self._access_profile_device(snapshot, uid, name)
+        block_id = str(profile_device.get("block_id") or "").strip()
+        if not block_id:
+            raise FritzBoxWebError(f"FRITZ!Box lieferte für „{name}“ keine Gerätesperre")
+
+        response = self.session.post(
+            f"{self.base}/internet/kids_userlist.lua",
+            data={
+                "uid": block_id,
+                "sid": self.sid,
+                "toBeBlocked": "true" if blocked else "false",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        actual: bool | None = None
+        for delay in (0.5, 1.0, 1.5, 2.0, 3.0):
+            time.sleep(delay)
+            verified = self.access_profiles()
+            verified_device = self._access_profile_device(verified, uid, name)
+            raw = str(verified_device.get("blocked") or "").strip().lower()
+            actual = True if raw == "true" else False if raw == "false" else None
+            if actual is blocked:
+                return
+        raise FritzBoxWebError(
+            "FRITZ!Box hat die Gerätesperre nicht bestätigt "
+            f"(gemeldet: {'gesperrt' if actual else 'freigegeben' if actual is False else 'unbekannt'})"
+        )
 
     def authoritative_hosts(
         self, tr064_hosts: list[dict[str, Any]]

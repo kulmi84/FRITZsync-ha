@@ -31,6 +31,8 @@ from .const import (
     ATTR_IP,
     ATTR_DNS_NAMES,
     ATTR_OLD_RECORD,
+    ATTR_PROFILE_ID,
+    ATTR_INTERNET_BLOCKED,
     CARD_FILENAME,
     CARD_URL,
     CONF_PIHOLE_DOMAIN,
@@ -53,6 +55,8 @@ from .const import (
     SERVICE_PIHOLE_SYNC_ALL,
     SERVICE_CLEANUP_STALE_HOSTS,
     SERVICE_REFRESH,
+    SERVICE_SET_ACCESS_PROFILE,
+    SERVICE_SET_INTERNET_BLOCK,
     URL_BASE,
     VERSION,
 )
@@ -88,6 +92,18 @@ PIHOLE_UPDATE_SCHEMA = vol.Schema(
     }
 )
 PIHOLE_DELETE_SCHEMA = vol.Schema({vol.Required(ATTR_OLD_RECORD): cv.string})
+ACCESS_PROFILE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_MAC): cv.string,
+        vol.Required(ATTR_PROFILE_ID): cv.string,
+    }
+)
+INTERNET_BLOCK_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_MAC): cv.string,
+        vol.Required(ATTR_INTERNET_BLOCKED): cv.boolean,
+    }
+)
 
 
 async def async_setup_entry(
@@ -143,6 +159,8 @@ async def async_unload_entry(
             SERVICE_PIHOLE_SYNC_ALL,
             SERVICE_CLEANUP_STALE_HOSTS,
             SERVICE_REFRESH,
+            SERVICE_SET_ACCESS_PROFILE,
+            SERVICE_SET_INTERNET_BLOCK,
         ):
             hass.services.async_remove(DOMAIN, service)
     return unloaded
@@ -463,6 +481,52 @@ def _async_register_services(hass: HomeAssistant) -> None:
         """Erzwingt denselben Vollabgleich wie der Aktualisieren-Button."""
         await _first_coordinator().async_refresh_all()
 
+    async def _handle_set_access_profile(call: ServiceCall) -> None:
+        """Weist einem Gerät ein Zugangsprofil zu und prüft die Übernahme."""
+        coordinator = _first_coordinator()
+        mac = normalize_mac(call.data[ATTR_MAC])
+        profile_id = str(call.data[ATTR_PROFILE_ID]).strip()
+
+        def _set_profile() -> str:
+            web = FritzBoxWebClient(
+                str(coordinator.entry.data[CONF_HOST]),
+                str(coordinator.entry.data[CONF_USERNAME]),
+                str(coordinator.entry.data[CONF_PASSWORD]),
+                bool(coordinator.entry.data.get(CONF_USE_TLS, DEFAULT_USE_TLS)),
+            )
+            return web.set_access_profile(mac, profile_id)
+
+        try:
+            await hass.async_add_executor_job(_set_profile)
+        except (FritzConnectionException, FritzBoxWebError, RequestException) as err:
+            raise HomeAssistantError(
+                f"Zugangsprofil für {mac} konnte nicht geändert werden: {err}"
+            ) from err
+        await coordinator.async_refresh_all()
+
+    async def _handle_set_internet_block(call: ServiceCall) -> None:
+        """Sperrt oder entsperrt den Internetzugang eines Geräts mit Rückprüfung."""
+        coordinator = _first_coordinator()
+        mac = normalize_mac(call.data[ATTR_MAC])
+        blocked = bool(call.data[ATTR_INTERNET_BLOCKED])
+
+        def _set_block() -> None:
+            web = FritzBoxWebClient(
+                str(coordinator.entry.data[CONF_HOST]),
+                str(coordinator.entry.data[CONF_USERNAME]),
+                str(coordinator.entry.data[CONF_PASSWORD]),
+                bool(coordinator.entry.data.get(CONF_USE_TLS, DEFAULT_USE_TLS)),
+            )
+            web.set_internet_block(mac, blocked)
+
+        try:
+            await hass.async_add_executor_job(_set_block)
+        except (FritzConnectionException, FritzBoxWebError, RequestException) as err:
+            raise HomeAssistantError(
+                f"Internetzugang für {mac} konnte nicht geändert werden: {err}"
+            ) from err
+        await coordinator.async_refresh_all()
+
     if not hass.services.has_service(DOMAIN, SERVICE_SET_DEVICE_NAME):
         hass.services.async_register(
             DOMAIN, SERVICE_SET_DEVICE_NAME, _handle_set_device_name, schema=MAC_SCHEMA
@@ -507,3 +571,17 @@ def _async_register_services(hass: HomeAssistant) -> None:
         )
     if not hass.services.has_service(DOMAIN, SERVICE_REFRESH):
         hass.services.async_register(DOMAIN, SERVICE_REFRESH, _handle_refresh)
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_ACCESS_PROFILE):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_ACCESS_PROFILE,
+            _handle_set_access_profile,
+            schema=ACCESS_PROFILE_SCHEMA,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_SET_INTERNET_BLOCK):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SET_INTERNET_BLOCK,
+            _handle_set_internet_block,
+            schema=INTERNET_BLOCK_SCHEMA,
+        )

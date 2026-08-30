@@ -6,7 +6,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "fritzsync_network"
 MANUFACTURER: Final = "FRITZ!"
-VERSION: Final = "1.10.34"
+VERSION: Final = "1.10.35"
 
 PLATFORMS: Final = [Platform.SENSOR]
 
@@ -52,6 +52,7 @@ ATTR_PIHOLE_RECORDS: Final = "pihole_manuelle_eintraege"
 ATTR_PIHOLE_ERROR: Final = "pihole_fehler"
 ATTR_PIHOLE_ENABLED: Final = "pihole_aktiv"
 ATTR_PIHOLE_ENTRIES: Final = "pihole_eintraege"
+ATTR_ACCESS_PROFILES: Final = "zugangsprofile"
 
 # --- Dienste -------------------------------------------------------------
 SERVICE_SET_DEVICE_NAME: Final = "set_device_name"
@@ -64,6 +65,8 @@ SERVICE_PIHOLE_DELETE_RECORD: Final = "pihole_delete_record"
 SERVICE_PIHOLE_SYNC_ALL: Final = "pihole_sync_all"
 SERVICE_CLEANUP_STALE_HOSTS: Final = "cleanup_stale_hosts"
 SERVICE_REFRESH: Final = "refresh"
+SERVICE_SET_ACCESS_PROFILE: Final = "set_access_profile"
+SERVICE_SET_INTERNET_BLOCK: Final = "set_internet_block"
 
 ATTR_MAC: Final = "mac"
 ATTR_NAME: Final = "name"
@@ -71,6 +74,8 @@ ATTR_COMMENT: Final = "comment"
 ATTR_IP: Final = "ip"
 ATTR_DNS_NAMES: Final = "dns_names"
 ATTR_OLD_RECORD: Final = "old_record"
+ATTR_PROFILE_ID: Final = "profile_id"
+ATTR_INTERNET_BLOCKED: Final = "blocked"
 
 # --- Dashboard-Karte -----------------------------------------------------
 CARD_FILENAME: Final = "fritzsync-network-card.js"
