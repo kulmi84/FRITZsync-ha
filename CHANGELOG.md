@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.10.35
+
+- vorhandene FRITZ!Box-Zugangsprofile dynamisch aus der Kindersicherungsseite laden
+- aktuelles Zugangsprofil im Detail-Popup mit seinem Namen anzeigen
+- Profile wie `Kinder`, `Standard`, `Unbeschränkt` und `Gesperrt` direkt am Gerät zuweisen
+- Internetzugang unabhängig vom Profil über die echte FRITZ!-Gerätesperre sperren und freigeben
+- vor der Zuweisung bestätigen und bei `Gesperrt` ausdrücklich auf die sofortige Internetsperre hinweisen
+- Profiländerung zwingend aus der FRITZ!Box zurücklesen und nur bei bestätigter Übernahme als erfolgreich melden
+- auch die Gerätesperre zwingend zurücklesen und nur bei bestätigter Übernahme als erfolgreich melden
+- bei nicht eindeutigen Gerätenamen sicher abbrechen, statt möglicherweise das falsche Gerät zu ändern
+
 ## 1.10.25
 
 - Standardfilter-Auswahl aus dem unzuverlässigen generischen Home-Assistant-Formular lösen

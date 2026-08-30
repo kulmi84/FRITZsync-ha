@@ -75,6 +75,8 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._address_sources: dict[str, dict[str, Any]] = {}
         self._address_source_scan: datetime | None = None
         self._address_source_failed = False
+        self._access_profiles: dict[str, str] = {}
+        self._access_profiles_scan: datetime | None = None
         self._ptr_records: dict[str, list[str]] = {}
         self._ptr_scan: datetime | None = None
         self._pihole_records: list[str] = []
@@ -132,10 +134,17 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return True
         return dt_util.utcnow() - self._ptr_scan >= self.address_source_interval
 
+    def _access_profiles_due(self) -> bool:
+        """Aktualisiert die kleine Profilliste im langsamen Takt."""
+        if self._access_profiles_scan is None:
+            return True
+        return dt_util.utcnow() - self._access_profiles_scan >= self.address_source_interval
+
     async def async_refresh_all(self) -> None:
         """Aktualisiert auch die langsam getakteten IP-Typ- und PTR-Felder."""
         self._address_source_scan = None
         self._ptr_scan = None
+        self._access_profiles_scan = None
         # ``async_request_refresh`` laeuft durch den Coordinator-Debouncer und
         # kann mit einem bereits geplanten Abruf zusammenfallen. Nach einer
         # Umbenennung bzw. einem manuellen Aktualisieren muessen PTR 1/2 jedoch
@@ -193,7 +202,7 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             str(options.get(CONF_PIHOLE_DOMAIN, DEFAULT_PIHOLE_DOMAIN)),
         )
 
-    def _fetch(self) -> tuple[list[dict[str, Any]], bool, bool]:
+    def _fetch(self) -> tuple[list[dict[str, Any]], bool, bool, bool]:
         """Blockierender Teil des Abrufs, laeuft im Executor."""
         tr064_hosts = self.fritz_hosts.get_hosts_attributes()
         try:
@@ -204,6 +213,19 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 bool(self.entry.data.get(CONF_USE_TLS, DEFAULT_USE_TLS)),
             )
             raw_hosts = web.authoritative_hosts(tr064_hosts)
+            profiles_refreshed = False
+            if self._access_profiles_due():
+                try:
+                    snapshot = web.access_profiles()
+                    self._access_profiles = dict(snapshot.get("profiles") or {})
+                    profiles_refreshed = True
+                except Exception as err:
+                    # Die Profilbedienung ist eine optionale Zusatzfunktion.
+                    # Die Geräteliste bleibt auch bei geänderter AVM-WebUI nutzbar.
+                    _LOGGER.warning("Zugangsprofile nicht abrufbar: %s", err)
+                    # Nach einem Fehler ebenfalls erst im langsamen Takt
+                    # erneut versuchen, damit das Protokoll nicht minütlich vollläuft.
+                    profiles_refreshed = True
             _LOGGER.debug(
                 "FRITZ!Box-Geräteliste: %d IPv4-Einträge aus WebUI/netDev",
                 len(raw_hosts),
@@ -216,6 +238,7 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "WebUI/netDev nicht verfügbar, verwende TR-064-Fallback: %s", err
             )
             raw_hosts = tr064_hosts
+            profiles_refreshed = False
         refreshed = False
         query_hosts = build_hosts(raw_hosts)
         if self._address_sources_due():
@@ -241,7 +264,7 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         else:
             self._pihole_records = []
             self._pihole_error = ""
-        return raw_hosts, refreshed, ptr_refreshed
+        return raw_hosts, refreshed, ptr_refreshed, profiles_refreshed
 
     def _ha_device_map(self) -> dict[str, dict[str, str]]:
         """Bildet MAC-Adressen auf Home-Assistant-Geraete ab.
@@ -273,7 +296,9 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Holt die Geraeteliste und reichert sie an."""
         try:
-            raw_hosts, refreshed, ptr_refreshed = await self.hass.async_add_executor_job(self._fetch)
+            raw_hosts, refreshed, ptr_refreshed, profiles_refreshed = (
+                await self.hass.async_add_executor_job(self._fetch)
+            )
         except (FritzSecurityError, FritzAuthorizationError) as err:
             raise ConfigEntryAuthFailed(
                 "Das FRITZ!Box-Konto hat keine ausreichenden Rechte. Benoetigt wird "
@@ -291,12 +316,19 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._address_source_scan = dt_util.utcnow()
         if ptr_refreshed:
             self._ptr_scan = dt_util.utcnow()
+        if profiles_refreshed:
+            self._access_profiles_scan = dt_util.utcnow()
 
         hosts = build_hosts(
             raw_hosts,
             self._address_sources if self.track_address_source else None,
             self._ha_device_map(),
         )
+        for host in hosts:
+            profile_id = str(host.get("filter_profile") or "")
+            host["filter_profile_name"] = self._access_profiles.get(
+                profile_id, profile_id
+            )
         apply_fritzsync_fields(
             hosts,
             self._ptr_records,
@@ -356,6 +388,7 @@ class FritzSyncNetworkCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "pihole_enabled": bool(
                 self.entry.options.get(CONF_PIHOLE_ENABLED, False)
             ),
+            "access_profiles": self._access_profiles,
         }
 
     async def async_invalidate_address_sources(self) -> None:

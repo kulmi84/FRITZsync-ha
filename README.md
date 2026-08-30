@@ -4,7 +4,7 @@ Lokale Home-Assistant-Integration für FRITZ!Box-Netzwerkgeräte, Pi-hole-DNS un
 konfigurierbare Dashboard-Tabelle. Geräte lassen sich durchsuchen, filtern, umbenennen,
 aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 
-![Version](https://img.shields.io/badge/Version-1.10.25-blue)
+![Version](https://img.shields.io/badge/Version-1.10.35-blue)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)
 ![FRITZ!OS](https://img.shields.io/badge/FRITZ!OS-8.x-E2001A)
@@ -51,6 +51,8 @@ aufwecken, bestätigen und als aktuelle Ansicht nach Excel exportieren.
 - **PTR 1/PTR 2**, Kommentare, IP-Typ, Verbindung, Tempo und Home-Assistant-Zuordnung
 - neue Geräte gelb markieren und per bestätigtem Klick als bekannt übernehmen
 - sichtbaren Gerätenamen nach Bestätigung direkt in der FRITZ!Box ändern
+- FRITZ!Box-Zugangsprofile im Gerätedialog anzeigen und nach Bestätigung ändern
+- Internetzugang eines Geräts unabhängig vom Profil direkt sperren oder freigeben
 - optional beim Umbenennen den passenden lokalen Pi-hole-DNS-Eintrag aktualisieren
 - manuelle Pi-hole-DNS-Einträge anzeigen, anlegen, bearbeiten und löschen
 - sichtbarer Ladecursor und drehendes Aktionssymbol während Pi-hole-Schreibvorgängen
@@ -311,6 +313,10 @@ Je nach Gerät bietet das Popup zusätzlich:
   Assistant über seine MAC-Adresse bekannt ist
 - **Aufwecken (WoL)** – sendet ein Wake-on-LAN-Signal, wird nur bei nicht verbundenen
   Geräten angezeigt
+- **Zugangsprofil ändern** – weist eines der direkt aus der FRITZ!Box geladenen Profile
+  zu; `Gesperrt` weist vor der sofortigen Internetsperre nochmals ausdrücklich darauf hin
+- **Internet sperren/freigeben** – schaltet die direkte FRITZ!-Gerätesperre; beim
+  Freigeben bleiben die Regeln des weiterhin zugewiesenen Zugangsprofils gültig
 
 Das Popup ist der Standard. Wer stattdessen wie bisher direkt zur Home-Assistant-Geräteseite
 springen möchte, schaltet im Editor *Klick öffnet ein Detail-Popup* ab; dann greift wieder
@@ -407,6 +413,8 @@ data:
 | --- | --- |
 | `fritzsync_network.set_device_comment` | MAC-basierten Kommentar speichern oder entfernen |
 | `fritzsync_network.acknowledge_device` | Ein neues Gerät dauerhaft als bekannt bestätigen |
+| `fritzsync_network.set_access_profile` | Zugangsprofil zuweisen und die Übernahme aus der FRITZ!Box zurücklesen |
+| `fritzsync_network.set_internet_block` | Direkte Gerätesperre setzen oder lösen und anschließend verifizieren |
 | `fritzsync_network.pihole_add_record` | Manuellen lokalen DNS-Eintrag anlegen |
 | `fritzsync_network.pihole_update_record` | Vorhandenen manuellen DNS-Eintrag ersetzen |
 | `fritzsync_network.pihole_delete_record` | Manuellen DNS-Eintrag löschen |

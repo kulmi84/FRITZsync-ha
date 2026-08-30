@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     ATTR_ACTIVE,
+    ATTR_ACCESS_PROFILES,
     ATTR_ADDRESS_SOURCE_SCAN,
     ATTR_ADDRESS_SOURCE_STATE,
     ATTR_BLOCKED,
@@ -91,7 +92,7 @@ class FritzSyncNetworkGeraeteSensor(FritzSyncNetworkBase):
     # jeder Zustandsaenderung in die Datenbank - bei 60 Geraeten sind das
     # schnell 15-20 kB pro Eintrag.
     _unrecorded_attributes = frozenset(
-        {ATTR_HOSTS, ATTR_PIHOLE_RECORDS, ATTR_PIHOLE_ENTRIES}
+        {ATTR_HOSTS, ATTR_PIHOLE_RECORDS, ATTR_PIHOLE_ENTRIES, ATTR_ACCESS_PROFILES}
     )
 
     def __init__(self, coordinator, entry) -> None:
@@ -125,6 +126,7 @@ class FritzSyncNetworkGeraeteSensor(FritzSyncNetworkBase):
             ATTR_PIHOLE_ERROR: data.get("pihole_error", ""),
             ATTR_PIHOLE_ENABLED: data.get("pihole_enabled", False),
             ATTR_PIHOLE_ENTRIES: data.get("pihole_entries", []),
+            ATTR_ACCESS_PROFILES: data.get("access_profiles", {}),
         }
 
 

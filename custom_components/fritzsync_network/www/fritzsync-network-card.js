@@ -17,7 +17,7 @@
  *   eingebundenes Modul beim zweiten define() abbricht.
  */
 
-const FBN_VERSION = "1.10.34";
+const FBN_VERSION = "1.10.35";
 
 /* ------------------------------------------------------------------ */
 /* Konfiguration                                                       */
@@ -583,6 +583,16 @@ class FritzSyncNetworkCard extends HTMLElement {
     return Array.isArray(hosts) ? hosts : [];
   }
 
+  _accessProfiles() {
+    const state = this._stateObj();
+    const profiles = state && state.attributes
+      ? state.attributes.zugangsprofile : null;
+    if (!profiles || typeof profiles !== "object" || Array.isArray(profiles)) return [];
+    return Object.entries(profiles)
+      .map(([id, name]) => ({ id: String(id), name: String(name) }))
+      .sort((left, right) => left.name.localeCompare(right.name, "de"));
+  }
+
   _manualPiholeHosts(includeManaged = false) {
     const state = this._stateObj();
     const attributes = (state && state.attributes) || {};
@@ -639,7 +649,7 @@ class FritzSyncNetworkCard extends HTMLElement {
 
   /** Erkennt, ob sich an den angezeigten Daten ueberhaupt etwas geaendert hat. */
   _computeSignature(hosts) {
-    return hosts
+    const hostSignature = hosts
       .map((host) =>
         [
           host.mac,
@@ -655,12 +665,15 @@ class FritzSyncNetworkCard extends HTMLElement {
           host.ha_name,
           host.static_ip,
           host.blocked ? 1 : 0,
+          host.filter_profile,
+          host.filter_profile_name,
           host.update_available ? 1 : 0,
           host.speed,
           host.stale_ip_duplicate ? 1 : 0,
         ].join("|")
       )
       .join("~");
+    return `${hostSignature}#${JSON.stringify(this._accessProfiles())}`;
   }
 
   _visibleColumns() {
@@ -1931,6 +1944,20 @@ class FritzSyncNetworkCard extends HTMLElement {
         this._acknowledgeDevice(host.mac, acknowledgeButton)
       );
     }
+    this._popup.querySelectorAll(".fbn-act-profile").forEach((button) => {
+      button.addEventListener("click", () => this._setAccessProfile(
+        host,
+        button.dataset.profileId,
+        button.dataset.profileName,
+        button
+      ));
+    });
+    const internetButton = this._popup.querySelector(".fbn-act-internet");
+    if (internetButton) {
+      internetButton.addEventListener("click", () =>
+        this._setInternetBlock(host, internetButton.dataset.blocked === "true", internetButton)
+      );
+    }
 
     // Schliessen in der Fusszeile.
     const footClose = this._popup.querySelector(".fbn-modal-close2");
@@ -1981,7 +2008,12 @@ class FritzSyncNetworkCard extends HTMLElement {
 
     add("Tempo", host.active ? escapeHtml(formatSpeed(host.speed)) : "—");
     add("Internetzugang", host.blocked ? "gesperrt" : "erlaubt");
-    if (host.filter_profile) add("Filterprofil", escapeHtml(host.filter_profile));
+    if (host.filter_profile) {
+      add(
+        "Zugangsprofil",
+        escapeHtml(host.filter_profile_name || host.filter_profile)
+      );
+    }
     add("Firmware-Update", host.update_available ? "verfügbar" : "keines");
     if (host.model) add("Modell", escapeHtml(host.model));
     add(
@@ -2042,6 +2074,38 @@ class FritzSyncNetworkCard extends HTMLElement {
       buttons.push(
         '<button class="fbn-btn fbn-act-comment" type="button"><ha-icon icon="mdi:comment-edit-outline"></ha-icon>Kommentar</button>'
       );
+      if (host.mac) {
+        const nextBlocked = !host.blocked;
+        buttons.push(`
+          <div class="fbn-profile-actions">
+            <span class="fbn-profile-label">Internetzugang</span>
+            <div class="fbn-profile-buttons">
+              <button class="fbn-btn fbn-act-internet${nextBlocked ? " fbn-btn-danger" : ""}"
+                      type="button" data-blocked="${nextBlocked}">
+                <ha-icon icon="${nextBlocked ? "mdi:web-off" : "mdi:web-check"}"></ha-icon>
+                ${nextBlocked ? "Internet sperren" : "Internet freigeben"}
+              </button>
+            </div>
+          </div>`);
+      }
+      const profiles = this._accessProfiles();
+      if (host.mac && profiles.length) {
+        const choices = profiles.map((profile) => {
+          const current = profile.id === host.filter_profile;
+          const blocked = profile.name.trim().toLocaleLowerCase("de-DE") === "gesperrt";
+          const icon = current ? "mdi:check-circle" : blocked ? "mdi:web-off" : "mdi:account-clock-outline";
+          return `<button class="fbn-btn fbn-act-profile${blocked ? " fbn-btn-danger" : ""}"
+                    type="button" data-profile-id="${escapeHtml(profile.id)}"
+                    data-profile-name="${escapeHtml(profile.name)}" ${current ? "disabled" : ""}>
+                    <ha-icon icon="${icon}"></ha-icon>${escapeHtml(profile.name)}
+                  </button>`;
+        }).join("");
+        buttons.push(`
+          <div class="fbn-profile-actions">
+            <span class="fbn-profile-label">Zugangsprofil ändern</span>
+            <div class="fbn-profile-buttons">${choices}</div>
+          </div>`);
+      }
     }
     buttons.push(
       '<button class="fbn-btn fbn-btn-primary fbn-modal-close2" type="button">Schließen</button>'
@@ -2097,6 +2161,51 @@ class FritzSyncNetworkCard extends HTMLElement {
     this._hass.callService("fritzsync_network", "set_device_comment", { mac: host.mac, comment })
       .then(() => { button.innerHTML = '<ha-icon icon="mdi:check"></ha-icon>Gespeichert'; })
       .catch(() => { button.disabled = false; button.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon>Fehlgeschlagen'; });
+  }
+
+  _setAccessProfile(host, profileId, profileName, button) {
+    if (!this._hass || !host.mac || !profileId) return;
+    const blocked = String(profileName || "").trim().toLocaleLowerCase("de-DE") === "gesperrt";
+    const warning = blocked
+      ? "\n\nDer Internetzugang dieses Geräts wird sofort gesperrt."
+      : "";
+    if (!confirm(`„${host.name}“ wirklich dem Zugangsprofil „${profileName}“ zuweisen?${warning}`)) return;
+    const buttons = this._popup
+      ? Array.from(this._popup.querySelectorAll(".fbn-act-profile")) : [button];
+    buttons.forEach((item) => { item.disabled = true; });
+    button.innerHTML = '<ha-icon icon="mdi:loading"></ha-icon>Wird geändert…';
+    this._hass.callService("fritzsync_network", "set_access_profile", {
+      mac: host.mac,
+      profile_id: profileId,
+    })
+      .then(() => {
+        button.innerHTML = '<ha-icon icon="mdi:check"></ha-icon>Übernommen';
+      })
+      .catch(() => {
+        buttons.forEach((item) => { item.disabled = false; });
+        button.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon>Fehlgeschlagen';
+      });
+  }
+
+  _setInternetBlock(host, blocked, button) {
+    if (!this._hass || !host.mac) return;
+    const question = blocked
+      ? `Internetzugang für „${host.name}“ wirklich sofort sperren?`
+      : `Internetzugang für „${host.name}“ wirklich freigeben?\n\nDie Regeln des zugewiesenen Zugangsprofils bleiben weiterhin gültig.`;
+    if (!confirm(question)) return;
+    button.disabled = true;
+    button.innerHTML = '<ha-icon icon="mdi:loading"></ha-icon>Wird geändert…';
+    this._hass.callService("fritzsync_network", "set_internet_block", {
+      mac: host.mac,
+      blocked,
+    })
+      .then(() => {
+        button.innerHTML = `<ha-icon icon="mdi:check"></ha-icon>${blocked ? "Gesperrt" : "Freigegeben"}`;
+      })
+      .catch(() => {
+        button.disabled = false;
+        button.innerHTML = '<ha-icon icon="mdi:alert"></ha-icon>Fehlgeschlagen';
+      });
   }
 
   _acknowledgeDevice(mac, button) {
@@ -2435,6 +2544,17 @@ class FritzSyncNetworkCard extends HTMLElement {
       .fbn-btn-primary {
         border-color: var(--primary-color, #03a9f4); color: var(--primary-color, #03a9f4);
       }
+      .fbn-btn-danger {
+        border-color: var(--error-color, #db4437); color: var(--error-color, #db4437);
+      }
+      .fbn-profile-actions {
+        width: 100%; display: flex; flex-direction: column; gap: 7px;
+        padding-bottom: 4px;
+      }
+      .fbn-profile-label {
+        color: var(--secondary-text-color, #727272); font-size: 0.82em;
+      }
+      .fbn-profile-buttons { display: flex; flex-wrap: wrap; gap: 7px; }
       .fbn-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
       .fbn-dot-on { background: var(--success-color, #43a047); }
       .fbn-dot-off { background: var(--disabled-text-color, #9e9e9e); }
